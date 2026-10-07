@@ -6,6 +6,10 @@
 set -euo pipefail
 # Corre 3-4 veces al día: espera más por el turno de la cola que los *-bd (hourly).
 GATE_WAIT="${GATE_WAIT:-1800}"
+# El origen trae entradas que el NAS (CIFS) no puede representar: nombres con bytes no
+# UTF-8 (p. ej. Latín-1), con barras invertidas ("Invalid argument") y enlaces
+# simbólicos. run_mirror las cuenta aparte (UNREPR_MAX) y las lista como aviso, así que
+# la ronda cierra PARCIAL sin que un fallo real se cuele bajo el mismo tope.
 . "${BACKUPCSR_LIB:-/opt/backupcsr/lib/common.sh}"
 
 job_init "latino-web"

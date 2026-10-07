@@ -177,8 +177,17 @@ corrida (ver `lib/common.sh`):
   `RETRY_BACKOFF`) hasta agotar; luego `ERROR: ... [transitorio]`.
 - `AVISO: N archivos con error` → el mirror terminó con fallos por archivo: el job cierra
   `PARCIAL` (hasta `PARTIAL_MAX`, por defecto 50) y se listan los 5 primeros en el historial.
+- `AVISO: N entradas no representables` → nombres que CIFS no admite (bytes no UTF-8,
+  barra invertida o enlace simbólico): se toleran aparte (`UNREPR_MAX`, por defecto 200) y
+  la ronda cierra `PARCIAL`; no cuentan contra `PARTIAL_MAX` para no ocultar errores reales.
 - `AVISO: cola ocupada` + `OMITIDO:` → la ronda no consiguió turno; estado `OMITIDO`.
 - `ERROR:` / `FALLO:` / `PROCESO: exit=N` → fallo definitivo y código de salida real.
+
+`require_remote_host` (`lib/common.sh`) aborta antes de conectar con `ERROR: el host de
+origen '...' resuelve solo a loopback` si el DNS del origen apunta a `127.0.0.1`/`::1`
+(caso de `ftp.gastronomia33app.com`): evita reintentos inútiles y lo clasifica como
+`fatal` (configuración), no como `transitorio`. El ruido de limpieza de lftp
+(`rm: Access failed: ... .lftp: No such file or directory`) se ignora, no es un fallo.
 
 Clasificación y severidad (portal): `fatal` (auth/NAS/destino) → **Crítico**; `transitorio`
 → **Aviso** y solo tras 2 corridas no-OK consecutivas (debounce); `contencion` (`OMITIDO`)
@@ -233,6 +242,17 @@ Alternativa (no usada hoy): renombrar el archivo en el origen a un nombre UTF-8 
 está referenciado por nombre. `tools/copiar-nombre-invalido.sh` sirve para copiarlo a un nombre
 válido si en algún momento se decide conservarlo.
 
+### Otras entradas no representables en el NAS (latino-web)
+
+El origen de `daruma302.socimedicostools.info` trae, además de bytes no UTF-8, entradas que
+CIFS no puede representar: nombres con **barra invertida** (`\`), que lftp reporta como
+`Invalid argument`, y **enlaces simbólicos**, que reporta como
+`symlink(...): Operation not supported`. `run_mirror` (`lib/common.sh`) cuenta estas
+entradas por separado (`UNREPR_MAX`, por defecto 200) de los errores reales
+(`PARTIAL_MAX`): la ronda cierra **PARCIAL** (aviso, con la lista de rutas en el historial)
+sin que un fallo real quede disfrazado de "parcial". Para eliminarlas del todo hay que
+renombrar en el origen o cambiar el `iocharset`/formato del montaje CIFS.
+
 ## Cuándo compite con el servidor (RAM, NAS, CPU)
 
 Síntoma: durante las copias el servidor se siente bloqueado (panel lento, SSH que no
@@ -251,7 +271,8 @@ Lo que ya hace el repo:
 | Planificador (cupos global y por host) | `app/scheduler.py`, `jobs.yml` | 2 copias a la vez y 1 por `origin_host`; las rondas que no caben esperan, sin `OMITIDO` |
 | Reintentos de ronda (`BACKUP_RETRY_*`) | `app/scheduler.py` | Un fallo transitorio se reencola con backoff y coalescing en vez de marcar `FALLO` al primer intento |
 | Reintentos de red (`MIRROR_ATTEMPTS`, `RETRY_BACKOFF`) | `lib/common.sh` | Reintenta la conexión ante errores transitorios (timeout, `max-retries`) antes de fallar |
-| Tolerancia por archivo (`PARTIAL_MAX`) | `lib/common.sh` | Unos pocos archivos con error no tumban el job: cierra `PARCIAL` y los lista |
+| Tolerancia por archivo (`PARTIAL_MAX`) | `lib/common.sh` | Unos pocos archivos con error real no tumban el job: cierra `PARCIAL` y los lista |
+| Tolerancia a no representables (`UNREPR_MAX`) | `lib/common.sh` | Nombres no UTF-8, barras invertidas y enlaces se cuentan aparte y no disparan `FALLO` |
 | `nice`/`ionice` (`JOB_NICE=15`, clase 2 prio 7) | `lib/common.sh` | Las copias ceden CPU e I/O al resto de servicios |
 | Minutos escalonados | `cron/backupcsr.cron`, `jobs.yml` | Los 6 jobs ya no arrancan en el mismo minuto |
 | No medir tamaños mientras el job corre | `web/app/sizes.py` | El portal no recorre con `du` un árbol que se está escribiendo (`force=True` —refresco manual— sí lo hace) |
@@ -260,7 +281,7 @@ Lo que ya hace el repo:
 Ajustes por job (se ponen antes del `source` de la librería en `jobs/*.sh` o en
 `/etc/backupcsr/credentials.env`): `MIRROR_PARALLEL`, `MIRROR_COMPARE`, `MIRROR_GATE` (vacío =
 sin cola), `GATE_WAIT`, `JOB_NICE`, `MIRROR_RATE_LIMIT` (p. ej. `5M`), `MIRROR_ATTEMPTS`,
-`RETRY_BACKOFF`, `PARTIAL_MAX`, `SKIP_EXIT`.
+`RETRY_BACKOFF`, `PARTIAL_MAX`, `UNREPR_MAX`, `SKIP_EXIT`.
 Nota: `GATE_WAIT` se lee al entrar a `job_init`, antes de `load_credentials`; los valores que
 vengan de `credentials.env` no le afectan (se aplican tras la cola).
 
