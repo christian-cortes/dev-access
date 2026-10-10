@@ -139,13 +139,35 @@
       <div class="cons-stats" id="consumptionStats"></div>
 
       <div class="charts-grid primary-grid">
-        <figure class="chart-box primary"><figcaption>Consumo</figcaption><canvas id="chartLoad"></canvas></figure>
+        <figure class="chart-box primary"><figcaption>Consumo</figcaption><div class="chart-canvas"><canvas id="chartLoad"></canvas></div></figure>
       </div>
 
       <div class="charts-grid secondary-grid">
-        <figure class="chart-box"><figcaption>Batería</figcaption><canvas id="chartCharge"></canvas></figure>
-        <figure class="chart-box"><figcaption>Autonomía</figcaption><canvas id="chartRuntime"></canvas></figure>
-        <figure class="chart-box"><figcaption>Voltaje</figcaption><canvas id="chartVolt"></canvas></figure>
+        <figure class="chart-box"><figcaption>Batería</figcaption><div class="chart-canvas"><canvas id="chartCharge"></canvas></div></figure>
+        <figure class="chart-box"><figcaption>Autonomía</figcaption><div class="chart-canvas"><canvas id="chartRuntime"></canvas></div></figure>
+        <figure class="chart-box"><figcaption>Voltaje</figcaption><div class="chart-canvas"><canvas id="chartVolt"></canvas></div></figure>
+      </div>
+    </section>
+
+    <section class="card charts-month" data-view="history">
+      <div class="card-head">
+        <div>
+          <h2 id="monthTitle">Consumo del mes</h2>
+          <p class="hint" id="monthHint">Recopilando datos…</p>
+        </div>
+        <div class="ranges" id="monthNav" role="group" aria-label="Mes">
+          <button type="button" id="monthPrev" aria-label="Mes anterior" title="Mes anterior">‹</button>
+          <button type="button" id="monthNext" aria-label="Mes siguiente" title="Mes siguiente">›</button>
+        </div>
+      </div>
+
+      <div class="cons-stats" id="monthStats"></div>
+
+      <div class="charts-grid primary-grid">
+        <figure class="chart-box primary">
+          <figcaption>Consumo diario</figcaption>
+          <div class="chart-canvas"><canvas id="chartMonth"></canvas></div>
+        </figure>
       </div>
     </section>
 

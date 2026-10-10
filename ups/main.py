@@ -21,6 +21,17 @@ RANGES = {
 }
 
 
+def _env_float(name, default=0.0):
+    try:
+        return float(os.environ.get(name, "") or default)
+    except (TypeError, ValueError):
+        return default
+
+
+ENERGY_PRICE_PER_KWH = _env_float("ENERGY_PRICE_PER_KWH", 0.0)
+ENERGY_CURRENCY = os.environ.get("ENERGY_CURRENCY", "COP").strip() or "COP"
+
+
 @asynccontextmanager
 async def lifespan(app):
     task = asyncio.create_task(collector.run())
@@ -66,6 +77,11 @@ async def meta():
             {"key": key, **info} for key, info in db.METRICS.items()
         ],
         "ranges": list(RANGES.keys()),
+        "energy": {
+            "price_per_kwh": ENERGY_PRICE_PER_KWH,
+            "currency": ENERGY_CURRENCY,
+        },
+        "data_start": await asyncio.to_thread(db.first_ts),
         "thresholds": {
             "charge_warning": summary.get("charge_warning", 50),
             "charge_low": summary.get("charge_low", 10),
@@ -101,6 +117,14 @@ async def api_history(metric: str = Query(...), range: str = Query("24h")):
         "resolution": "hourly" if (until - since) > db.HOURLY_THRESHOLD else "raw",
         "points": points,
     }
+
+
+@app.get("/api/consumption/month")
+async def api_consumption_month(since: int = Query(...), until: int = Query(...)):
+    if until <= since:
+        raise HTTPException(status_code=400, detail="rango invalido")
+    points = await asyncio.to_thread(db.hourly_series, "ups_load", since, until)
+    return {"metric": "ups_load", "since": since, "until": until, "points": points}
 
 
 ON_BATTERY_TOKENS = {"OB", "DISCHRG", "LB"}

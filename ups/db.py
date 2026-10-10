@@ -117,6 +117,30 @@ def history(metric, since_ts, until_ts):
     return [[r["ts"], r["v"]] for r in rows]
 
 
+def hourly_series(metric, since_ts, until_ts):
+    """Return [[ts, avg, min, max, n], ...] from hourly rollups."""
+    if metric not in METRICS:
+        return []
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT ts, avg, min, max, n FROM hourly"
+        " WHERE metric=? AND ts>=? AND ts<=? ORDER BY ts",
+        (metric, since_ts, until_ts),
+    ).fetchall()
+    return [[r["ts"], r["avg"], r["min"], r["max"], r["n"]] for r in rows]
+
+
+def first_ts():
+    """Earliest stored timestamp across raw samples and hourly rollups."""
+    conn = get_conn()
+    candidates = []
+    for query in ("SELECT MIN(ts) AS t FROM samples", "SELECT MIN(ts) AS t FROM hourly"):
+        row = conn.execute(query).fetchone()
+        if row and row["t"] is not None:
+            candidates.append(row["t"])
+    return min(candidates) if candidates else None
+
+
 def events(since_ts):
     conn = get_conn()
     rows = conn.execute(

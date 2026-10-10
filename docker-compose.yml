@@ -101,6 +101,9 @@ services:
       SIMULATE: "0"
       HTTP_FALLBACK: "1"
       PORTAL_STATUS_URL: "http://127.0.0.1:8088/api/status"
+      # Precio de la energia para estimar el costo del consumo mensual (0 lo oculta).
+      ENERGY_PRICE_PER_KWH: "970.82"
+      ENERGY_CURRENCY: "COP"
     volumes:
       - ./ups/data:/data
     healthcheck:

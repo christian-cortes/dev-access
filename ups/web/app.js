@@ -51,6 +51,9 @@
     theme: localStorage.getItem("nut-theme") || "dark",
     metricKeys: DEFAULT_METRICS,
     colors: Object.assign({}, FALLBACK_COLORS),
+    energy: { price: 0, currency: "COP" },
+    monthCursor: null,
+    earliestMonth: null,
   };
 
   function statusFromTokens(status) {
@@ -476,6 +479,36 @@
     state.charts.runtime = makeChart("chartRuntime", [ds("Autonomía", c.battery_runtime)]);
     state.charts.load = makeChart("chartLoad", [ds("Consumo", c.ups_load)]);
     state.charts.volt = makeChart("chartVolt", [ds("Entrada", c.input_voltage), ds("Batería", c.battery_voltage)]);
+    state.charts.month = makeMonthChart("chartMonth", c.ups_load);
+  }
+
+  function makeMonthChart(id, color) {
+    const options = baseOptions();
+    options.scales.x.ticks.maxTicksLimit = 12;
+    options.scales.y.beginAtZero = true;
+    options.plugins.tooltip.callbacks = {
+      label: (ctx) => {
+        const kwh = (ctx.chart.$kwh || [])[ctx.dataIndex];
+        const w = ctx.parsed.y;
+        return kwh == null ? `${w} W` : [`${w} W`, `≈ ${kwh.toFixed(2)} kWh`];
+      },
+    };
+    return new Chart($(id).getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: [],
+        datasets: [{
+          label: "Consumo",
+          data: [],
+          backgroundColor: color + "59",
+          borderColor: color,
+          borderWidth: 1,
+          borderRadius: 4,
+          maxBarThickness: 26,
+        }],
+      },
+      options,
+    });
   }
 
   function align(times, points, transform) {
@@ -679,6 +712,150 @@
     host.innerHTML = chip("Actual", current) + chip("Media", avg) + chip("Pico", peak);
   }
 
+  const pctToWatts = (pct) => (pct * state.nominalPower) / 100;
+  const pctHoursToKwh = (pctHours) => (pctHours * state.nominalPower) / 100 / 1000;
+  const monthStart = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
+  const sameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+
+  function fmtMoney(value) {
+    const { currency } = state.energy;
+    try {
+      return new Intl.NumberFormat("es-CO", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+    } catch (_) {
+      return `${Math.round(value).toLocaleString()} ${currency}`;
+    }
+  }
+
+  function monthlyStatsFromPoints(points) {
+    const byDay = new Map();
+    (points || []).forEach((p) => {
+      const ts = p[0];
+      const avg = p[1];
+      if (avg == null) return;
+      const mn = p[2];
+      const mx = p[3];
+      const n = p[4] || 1;
+      const day = new Date(ts * 1000);
+      day.setHours(0, 0, 0, 0);
+      const key = day.getTime();
+      let acc = byDay.get(key);
+      if (!acc) {
+        acc = { day, sumAvgN: 0, sumN: 0, max: null, min: null, hours: 0, energy: 0 };
+        byDay.set(key, acc);
+      }
+      acc.sumAvgN += avg * n;
+      acc.sumN += n;
+      acc.energy += avg;
+      acc.hours += 1;
+      if (mx != null) acc.max = acc.max == null ? mx : Math.max(acc.max, mx);
+      if (mn != null) acc.min = acc.min == null ? mn : Math.min(acc.min, mn);
+    });
+    return [...byDay.values()]
+      .sort((a, b) => a.day - b.day)
+      .map((d) => {
+        const avg = d.sumAvgN / d.sumN;
+        return { ...d, avg, max: d.max == null ? avg : d.max, min: d.min == null ? avg : d.min };
+      });
+  }
+
+  function renderMonthStats(days, summary, isCurrent) {
+    const host = $("monthStats");
+    if (!host) return;
+    if (!days.length || !summary) {
+      host.innerHTML = "";
+      return;
+    }
+    const chip = (label, value) => `<div class="cons-chip"><span>${label}</span><strong>${value}</strong></div>`;
+    const kwh = pctHoursToKwh(summary.energy);
+    const cost = state.energy.price > 0 ? fmtMoney(kwh * state.energy.price) : "";
+    let todayChip = "";
+    if (isCurrent) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayAcc = days.find((d) => d.day.getTime() === today.getTime());
+      todayChip = chip("Hoy", todayAcc ? `${Math.round(pctToWatts(todayAcc.avg))} W` : "—");
+    }
+    host.innerHTML =
+      todayChip +
+      chip("Media mes", `${Math.round(pctToWatts(summary.avg))} W`) +
+      chip("Pico mes", `${Math.round(pctToWatts(summary.peak))} W`) +
+      chip("Energía mes", `${kwh.toFixed(1)} kWh`) +
+      (cost ? chip("Costo mes", cost) : "");
+  }
+
+  function updateMonthNav() {
+    const current = monthStart(new Date());
+    const cursor = state.monthCursor || current;
+    const prev = $("monthPrev");
+    const next = $("monthNext");
+    if (prev) prev.disabled = state.earliestMonth ? cursor <= state.earliestMonth : false;
+    if (next) next.disabled = cursor >= current;
+  }
+
+  function shiftMonth(delta) {
+    const current = monthStart(new Date());
+    const cursor = state.monthCursor || current;
+    let target = new Date(cursor.getFullYear(), cursor.getMonth() + delta, 1);
+    if (target > current) target = current;
+    if (state.earliestMonth && target < state.earliestMonth) target = state.earliestMonth;
+    state.monthCursor = target;
+    loadMonthlyConsumption();
+  }
+
+  async function loadMonthlyConsumption() {
+    const chart = state.charts.month;
+    if (!chart) return;
+    const now = new Date();
+    const current = monthStart(now);
+    const cursor = state.monthCursor || current;
+    state.monthCursor = cursor;
+    const isCurrent = sameMonth(cursor, now);
+    const since = Math.floor(cursor.getTime() / 1000);
+    const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    const until = Math.floor((isCurrent ? now : monthEnd).getTime() / 1000);
+    let points = [];
+    try {
+      const res = await fetch(`/api/consumption/month?since=${since}&until=${until}`).then((r) => r.json());
+      points = (res && res.points) || [];
+    } catch (_) {
+      points = [];
+    }
+
+    const title = $("monthTitle");
+    if (title) title.textContent = `Consumo del mes · ${cursor.toLocaleDateString([], { month: "long", year: "numeric" })}`;
+    const hint = $("monthHint");
+
+    const days = monthlyStatsFromPoints(points);
+    if (!days.length) {
+      chart.data.labels = [];
+      chart.data.datasets[0].data = [];
+      chart.$kwh = [];
+      chart.update();
+      renderMonthStats([], null, isCurrent);
+      if (hint) hint.textContent = isCurrent ? "Sin datos del mes en curso." : "Sin datos en este mes.";
+      updateMonthNav();
+      return;
+    }
+
+    const totalN = days.reduce((a, d) => a + d.sumN, 0);
+    const summary = {
+      avg: days.reduce((a, d) => a + d.sumAvgN, 0) / totalN,
+      peak: Math.max(...days.map((d) => d.max)),
+      min: Math.min(...days.map((d) => d.min)),
+      energy: days.reduce((a, d) => a + d.energy, 0),
+    };
+
+    chart.data.labels = days.map((d) => String(d.day.getDate()).padStart(2, "0"));
+    chart.data.datasets[0].data = days.map((d) => Math.round(pctToWatts(d.avg)));
+    chart.$kwh = days.map((d) => pctHoursToKwh(d.energy));
+    chart.update();
+
+    renderMonthStats(days, summary, isCurrent);
+    const priceTxt = state.energy.price > 0 ? ` · ${fmtMoney(state.energy.price)}/kWh` : "";
+    if (hint) hint.textContent = `${days.length} días con datos · energía estimada con ${Math.round(state.nominalPower)} W nominales${priceTxt}`;
+    updateMonthNav();
+  }
+
   function renderRanges() {
     const host = $("ranges");
     host.textContent = "";
@@ -719,7 +896,9 @@
       b.classList.toggle("active", b.dataset.view === view);
     });
     if (view === "history") {
-      loadHistory().then(() => Object.values(state.charts).forEach((c) => c && c.resize()));
+      Promise.all([loadHistory(), loadMonthlyConsumption()]).then(() =>
+        Object.values(state.charts).forEach((c) => c && c.resize())
+      );
     } else if (view === "events") {
       loadEvents();
       loadPowerEvents();
@@ -791,6 +970,15 @@
     } else {
       state.metricKeys = DEFAULT_METRICS;
     }
+    if (state.meta?.energy) {
+      const price = Number(state.meta.energy.price_per_kwh);
+      if (Number.isFinite(price) && price > 0) state.energy.price = price;
+      if (state.meta.energy.currency) state.energy.currency = state.meta.energy.currency;
+    }
+    state.monthCursor = monthStart(new Date());
+    if (state.meta?.data_start) {
+      state.earliestMonth = monthStart(new Date(state.meta.data_start * 1000));
+    }
 
     renderKpis();
     buildCharts();
@@ -802,11 +990,15 @@
     if (menuBtn) menuBtn.addEventListener("click", () => setMenu(!document.body.classList.contains("menu-open")));
     const menuScrim = $("menuScrim");
     if (menuScrim) menuScrim.addEventListener("click", () => setMenu(false));
+    const monthPrev = $("monthPrev");
+    if (monthPrev) monthPrev.addEventListener("click", () => shiftMonth(-1));
+    const monthNext = $("monthNext");
+    if (monthNext) monthNext.addEventListener("click", () => shiftMonth(1));
     showView("dashboard");
-    await Promise.all([refreshSummary(), loadHistory(), loadEvents(), loadPowerEvents()]);
+    await Promise.all([refreshSummary(), loadHistory(), loadEvents(), loadPowerEvents(), loadMonthlyConsumption()]);
     connect();
     setInterval(() => { if (!state.wsConnected) refreshSummary(); }, 30000);
-    setInterval(() => { loadHistory(); loadEvents(); }, 300000);
+    setInterval(() => { loadHistory(); loadEvents(); loadMonthlyConsumption(); }, 300000);
     setInterval(tickLastSeen, 1000);
   }
 
