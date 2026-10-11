@@ -13,6 +13,7 @@ import time
 import urllib.request
 
 import db
+import notify
 
 UPS_HOST = os.environ.get("UPS_HOST", "192.168.0.224")
 UPS_NAME = os.environ.get("UPS_NAME", "apc")
@@ -284,15 +285,42 @@ def source():
     return _state.get("source")
 
 
+def _tokens(value):
+    return {token for token in (value or "").upper().split() if token}
+
+
+def _publish_status(prev, cur):
+    """Publica transiciones de estado relevantes (corte, restauración, batería baja)."""
+    before = _tokens(prev)
+    after = _tokens(cur)
+    on_before = bool(before & {"OB", "DISCHRG"})
+    on_after = bool(after & {"OB", "DISCHRG"})
+    if on_after and not on_before:
+        notify.publish("ups.on_battery", "Corte de energía",
+                       body="La UPS está funcionando con batería.", dedupe_key="battery")
+    elif on_before and not on_after:
+        notify.publish("ups.restored", "Energía restaurada",
+                       body="La UPS vuelve a la red eléctrica.", dedupe_key="battery")
+    if (after & {"LB"}) and not (before & {"LB"}):
+        notify.publish("ups.low_battery", "Batería baja",
+                       body="La UPS reporta batería baja.", dedupe_key="lb")
+
+
 async def collect_once():
     global _last_status
+    was_error = bool(_state.get("error"))
     try:
         raw = await _read_ups()
     except Exception as exc:  # noqa: BLE001 - best-effort polling
         _state["error"] = str(exc)
         _state["error_ts"] = int(time.time())
+        notify.publish("ups.comm_lost", "Sin comunicación con la UPS",
+                       body=f"No se pudo leer la UPS: {exc}", dedupe_key="comm")
         return None
 
+    if was_error:
+        notify.publish("ups.comm_restored", "Comunicación con la UPS restaurada",
+                       body="La UPS vuelve a responder.", dedupe_key="comm")
     _state["error"] = None
     ts = int(time.time())
     values = {col: _num(raw.get(var)) for var, col in WATCH.items()}
@@ -302,6 +330,7 @@ async def collect_once():
     if status and _last_status and status != _last_status:
         await asyncio.to_thread(db.record_event, ts, _last_status, status)
     if status:
+        _publish_status(_last_status, status)
         _last_status = status
 
     summary = _build_summary(ts, raw, values)

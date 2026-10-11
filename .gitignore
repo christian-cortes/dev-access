@@ -9,6 +9,10 @@ backend/data/
 # Secretos de monitoring (clave admin de Grafana). Usar .env.example como plantilla.
 .env
 
+# Credenciales de Firebase (service account). Nunca versionar.
+firebase-service-account*.json
+*service-account*.json
+
 # Python
 __pycache__/
 *.pyc
@@ -27,3 +31,6 @@ backupcsr/web/venv/
 
 ups/data/
 ups/__pycache__/
+
+# Datos runtime del servicio notify (SQLite y cuenta de servicio montada).
+notify/data/

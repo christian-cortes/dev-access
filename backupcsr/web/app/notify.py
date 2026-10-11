@@ -10,11 +10,13 @@ Los destinatarios y el transporte salen de /etc/backupcsr/web.env (ver config.py
 """
 from __future__ import annotations
 
+import json
 import logging
 import smtplib
 import ssl
 import subprocess
 import time
+import urllib.request
 from datetime import timedelta
 from email.message import EmailMessage
 from pathlib import Path
@@ -178,6 +180,95 @@ def flush_recovery() -> int:
             )
             sent += 1
     return sent
+
+
+# --- Push (servicio notify) -------------------------------------------------
+
+_pushed_open: set = set()
+_pushed_resolved: set = set()
+
+
+def push_enabled() -> bool:
+    return bool(config.NOTIFY_URL and config.NOTIFY_INGEST_TOKEN)
+
+
+def _publish(event_key: str, title: str, body: str, dedupe_key: str) -> None:
+    payload = {
+        "area": "copias",
+        "event_key": event_key,
+        "title": title,
+        "body": body,
+        "url": "https://copias.cortexdev.win",
+        "dedupe_key": dedupe_key,
+    }
+    data = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        config.NOTIFY_URL + "/api/events",
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {config.NOTIFY_INGEST_TOKEN}",
+        },
+        method="POST",
+    )
+    try:
+        urllib.request.urlopen(request, timeout=5).read()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("no se pudo publicar el evento %s: %s", event_key, exc)
+
+
+def _open_critical() -> list[dict]:
+    return db.query(
+        "SELECT i.*, j.slug AS job_slug, j.name AS job_name FROM incidents i "
+        "JOIN jobs j ON j.id = i.job_id "
+        "WHERE i.resolved_at IS NULL AND i.`level` = 'danger' ORDER BY i.last_seen"
+    )
+
+
+def _recent_resolved() -> list[dict]:
+    since = logs.to_naive(logs.now() - timedelta(minutes=15))
+    return db.query(
+        "SELECT i.*, j.slug AS job_slug, j.name AS job_name FROM incidents i "
+        "JOIN jobs j ON j.id = i.job_id "
+        "WHERE i.resolved_at IS NOT NULL AND i.resolved_at >= %s ORDER BY i.resolved_at",
+        (since,),
+    )
+
+
+def flush_push() -> int:
+    """Publica a notify los incidentes críticos abiertos y los resueltos recientes.
+
+    El estado de 'ya enviado' vive en memoria y lo refuerza el dedupe del servicio
+    notify, así que no necesita columnas nuevas en la tabla de incidentes.
+    """
+    if not push_enabled() or not db.available():
+        return 0
+    count = 0
+    try:
+        opened = _open_critical()
+    except Exception:  # noqa: BLE001
+        opened = []
+    for row in opened:
+        if row["id"] in _pushed_open:
+            continue
+        name = row.get("job_name") or row.get("job_slug") or "tarea"
+        _publish("incident.open", f"{name}: falló",
+                 _incident_body(row, "Incidente abierto"), f"incident-{row['id']}")
+        _pushed_open.add(row["id"])
+        count += 1
+    try:
+        resolved = _recent_resolved()
+    except Exception:  # noqa: BLE001
+        resolved = []
+    for row in resolved:
+        if row["id"] in _pushed_resolved:
+            continue
+        name = row.get("job_name") or row.get("job_slug") or "tarea"
+        _publish("incident.recovered", f"{name}: recuperado",
+                 _incident_body(row, "Incidente resuelto"), f"incident-{row['id']}-ok")
+        _pushed_resolved.add(row["id"])
+        count += 1
+    return count
 
 
 def _digest_rows() -> tuple[list[dict], list[dict], list[dict]]:

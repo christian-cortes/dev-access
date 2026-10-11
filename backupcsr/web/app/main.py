@@ -65,6 +65,7 @@ async def _poll() -> None:
                 # Fuera del bucle de eventos: el correo hace I/O bloqueante (SMTP/sendmail).
                 await asyncio.to_thread(notify.flush_immediate)
                 await asyncio.to_thread(notify.flush_recovery)
+                await asyncio.to_thread(notify.flush_push)
         except Exception:  # noqa: BLE001
             log.exception("falló el ciclo de sondeo")
         await asyncio.sleep(config.POLL_INTERVAL)

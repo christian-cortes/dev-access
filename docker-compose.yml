@@ -30,6 +30,9 @@ services:
       POLL_INTERVAL: "30"
       PROBE_TIMEOUT: "5"
       RETENTION_DAYS: "7"
+      # Publicación de eventos (servicio caído/recuperado) al servicio de notificaciones.
+      NOTIFY_URL: "http://127.0.0.1:8490"
+      NOTIFY_INGEST_TOKEN: ${NOTIFY_INGEST_TOKEN:-}
     volumes:
       - ./backend/data:/data
       - ./certs:/certs:ro
@@ -85,6 +88,63 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
 
+  notify:
+    container_name: notify
+    mem_limit: 192m
+    build:
+      context: ./notify
+      dockerfile: Dockerfile
+    image: cortexdev-notify:local
+    # host network: uvicorn bindea 127.0.0.1:8490; las apps lo alcanzan y nginx
+    # lo usa para auth_request y el proxy /api/push.
+    network_mode: host
+    environment:
+      NOTIFY_DB_PATH: /data/notify.db
+      # Mismo secreto/salt/cookie que backupcsr/web/app/auth.py para el SSO.
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-}
+      AUTH_COOKIE: ${AUTH_COOKIE:-backupcsr_session}
+      AUTH_SALT: ${AUTH_SALT:-backupcsr-session}
+      # Credenciales generales del login único (index.cortexdev.win). Sustituyen
+      # al login propio de copias: la misma sesión entra en copias, ups, etc.
+      AUTH_GENERAL_USER: ${AUTH_GENERAL_USER:-}
+      AUTH_GENERAL_PASSWORD: ${AUTH_GENERAL_PASSWORD:-}
+      AUTH_GENERAL_ROLE: ${AUTH_GENERAL_ROLE:-admin}
+      NOTIFY_LOGIN_URL: ${NOTIFY_LOGIN_URL:-https://index.cortexdev.win/login.html}
+      NOTIFY_INGEST_TOKEN: ${NOTIFY_INGEST_TOKEN:-}
+      FIREBASE_API_KEY: ${FIREBASE_API_KEY:-}
+      FIREBASE_AUTH_DOMAIN: ${FIREBASE_AUTH_DOMAIN:-}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      FIREBASE_STORAGE_BUCKET: ${FIREBASE_STORAGE_BUCKET:-}
+      FIREBASE_MESSAGING_SENDER_ID: ${FIREBASE_MESSAGING_SENDER_ID:-}
+      FIREBASE_APP_ID: ${FIREBASE_APP_ID:-}
+      FIREBASE_MEASUREMENT_ID: ${FIREBASE_MEASUREMENT_ID:-}
+      FIREBASE_VAPID_KEY: ${FIREBASE_VAPID_KEY:-}
+      FIREBASE_SERVICE_ACCOUNT_PATH: /etc/firebase/service-account.json
+      NOTIFY_MAIL_TO: ${NOTIFY_MAIL_TO:-}
+      BACKUP_ALERT_MAIL_TO: ${BACKUP_ALERT_MAIL_TO:-}
+      BACKUP_ALERT_SMTP_HOST: ${BACKUP_ALERT_SMTP_HOST:-}
+      BACKUP_ALERT_SMTP_PORT: ${BACKUP_ALERT_SMTP_PORT:-}
+      BACKUP_ALERT_SMTP_USER: ${BACKUP_ALERT_SMTP_USER:-}
+      BACKUP_ALERT_SMTP_PASS: ${BACKUP_ALERT_SMTP_PASS:-}
+      BACKUP_ALERT_SMTP_TLS: ${BACKUP_ALERT_SMTP_TLS:-}
+    volumes:
+      - ./notify/data:/data
+      # Cuenta de servicio de Firebase (gitignored). Se monta FUERA de /data a
+      # propósito: un file-mount dentro del bind de un directorio es frágil y
+      # puede quedar tapado por el montaje del directorio (FCM quedaría off).
+      - ./firebase-service-account.json:/etc/firebase/service-account.json:ro
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8490/health', timeout=3).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
   ups_app:
     container_name: ups_app
     mem_limit: 128m
@@ -104,6 +164,9 @@ services:
       # Precio de la energia para estimar el costo del consumo mensual (0 lo oculta).
       ENERGY_PRICE_PER_KWH: "970.82"
       ENERGY_CURRENCY: "COP"
+      # Publicación de eventos al servicio de notificaciones.
+      NOTIFY_URL: "http://127.0.0.1:8490"
+      NOTIFY_INGEST_TOKEN: ${NOTIFY_INGEST_TOKEN:-}
     volumes:
       - ./ups/data:/data
     healthcheck:

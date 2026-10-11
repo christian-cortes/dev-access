@@ -55,6 +55,13 @@ SESSION_MAX_AGE = _int("BACKUP_SESSION_MAX_AGE", 12 * 3600)
 # Cookie Secure: 1 por defecto (todo va por https vía nginx). Poner 0 solo para
 # pruebas directas contra http://127.0.0.1:8089.
 COOKIE_SECURE = _flag("BACKUP_COOKIE_SECURE", "1")
+# Dominio de la cookie de sesión. Con .cortexdev.win la sesión de copias vale
+# para index.cortexdev.win y ups.cortexdev.win (SSO). Vacío = solo el host actual.
+COOKIE_DOMAIN = os.environ.get("BACKUP_COOKIE_DOMAIN", ".cortexdev.win").strip()
+
+# --- Notificaciones push (servicio notify) ---
+NOTIFY_URL = os.environ.get("NOTIFY_URL", "").rstrip("/")
+NOTIFY_INGEST_TOKEN = os.environ.get("NOTIFY_INGEST_TOKEN", "").strip()
 
 # --- Comportamiento ---
 MANAGE_CRON = _flag("BACKUP_MANAGE_CRON")

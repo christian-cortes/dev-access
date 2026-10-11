@@ -425,7 +425,8 @@ def _open_incidents() -> dict:
     """
     try:
         rows = db.query(
-            "SELECT j.slug AS slug, i.error_class, i.consecutive "
+            "SELECT j.slug AS slug, i.error_class, i.consecutive, "
+            "i.first_seen, i.last_seen, i.`count` "
             "FROM incidents i JOIN jobs j ON j.id = i.job_id "
             "WHERE i.resolved_at IS NULL"
         )
@@ -440,6 +441,91 @@ def _raise_by_criticality(level: str, job: dict) -> str:
     if level == "warning" and str(job.get("criticality") or "") == "alta":
         return "danger"
     return level
+
+
+# Etiqueta corta de la clase de error (ver logs.py) para el detalle del aviso.
+CLASS_LABELS = {
+    "fatal": "Crítico",
+    "transitorio": "Red",
+    "contencion": "Cola",
+    "parcial": "Parcial",
+}
+
+
+def _when(value) -> str | None:
+    """Fecha legible en la zona del portal, o None si viene vacía."""
+    if not value:
+        return None
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except ValueError:
+            return value
+    try:
+        return logs.from_naive(value).strftime("%Y-%m-%d %H:%M")
+    except Exception:  # noqa: BLE001
+        return str(value)
+
+
+def _incident_rows(inc: dict) -> list[dict]:
+    """Detalle temporal de un incidente abierto (count/first_seen/last_seen)."""
+    rows: list[dict] = []
+    if inc.get("count"):
+        rows.append({"label": "Incidencias", "value": str(int(inc["count"]))})
+    first = _when(inc.get("first_seen"))
+    if first:
+        rows.append({"label": "Desde", "value": first})
+    last = _when(inc.get("last_seen"))
+    if last:
+        rows.append({"label": "Última vez", "value": last})
+    return rows
+
+
+def _job_details(job: dict, inc: dict, cls: str | None) -> list[dict]:
+    """Filas de detalle de una tarea para la campana."""
+    rows: list[dict] = [
+        {"label": "Estado", "value": job.get("status_detail") or job.get("status") or "—"},
+    ]
+    if cls:
+        rows.append({"label": "Clase", "value": CLASS_LABELS.get(cls, cls)})
+    if int(inc.get("consecutive") or 0):
+        rows.append({"label": "Fallos consecutivos", "value": str(int(inc["consecutive"]))})
+    rows.extend(_incident_rows(inc))
+    last = (job.get("last_run") or {}).get("started_at")
+    if last:
+        rows.append({"label": "Última ejecución", "value": _when(last) or str(last)})
+    if job.get("next_run"):
+        rows.append({"label": "Próximo intento", "value": _when(job["next_run"]) or str(job["next_run"])})
+    if job.get("criticality"):
+        rows.append({"label": "Criticidad", "value": str(job["criticality"]).capitalize()})
+    return rows
+
+
+def _notif(kind: str, level: str, text: str, *, slug: str | None = None,
+           cls: str | None = None, consecutive: int = 0,
+           details: list[dict] | None = None, extra: dict | None = None,
+           ts: str | None = None) -> dict:
+    """Aviso normalizado para la campana: id estable, severidad, fecha y detalle."""
+    arm = f"{slug}:{cls}:" if slug else ""
+    notif: dict = {
+        "id": f"copias:{kind}:{arm}{level}",
+        "severity": "critical" if level == "danger" else "warning",
+        "level": level,
+        "kind": kind,
+        "text": text,
+        "ts": ts or logs.now().strftime("%Y-%m-%d %H:%M"),
+        "details": details or [],
+    }
+    if slug:
+        notif["slug"] = slug
+        notif["action"] = {"label": "Ver tarea", "slug": slug}
+    if cls:
+        notif["class"] = cls
+    if consecutive:
+        notif["consecutive"] = consecutive
+    if extra:
+        notif.update(extra)
+    return notif
 
 
 def build_alerts(jobs: list[dict]) -> list[dict]:
@@ -458,74 +544,82 @@ def build_alerts(jobs: list[dict]) -> list[dict]:
         inc = incidents.get(slug) or {}
         consecutive = int(inc.get("consecutive") or 0)
         status = job["status"]
+        when = _when(inc.get("last_seen")) or _when((job.get("last_run") or {}).get("started_at"))
         if status == "FALLO":
             cls = inc.get("error_class") or job.get("error_class") or "fatal"
             if cls == "transitorio" and consecutive < 2:
                 continue  # debounce: un fallo transitorio aislado no alerta
-            level = "danger" if cls == "fatal" else "warning"
-            alerts.append({
-                "level": _raise_by_criticality(level, job), "kind": "job", "slug": slug,
-                "class": cls, "consecutive": consecutive,
-                "text": f"{job['name']}: {job.get('status_detail') or 'falló'}",
-            })
+            level = _raise_by_criticality("danger" if cls == "fatal" else "warning", job)
+            alerts.append(_notif(
+                "job", level, f"{job['name']}: {job.get('status_detail') or 'falló'}",
+                slug=slug, cls=cls, consecutive=consecutive, ts=when,
+                details=_job_details(job, inc, cls),
+            ))
         elif status == "PARCIAL":
-            alerts.append({
-                "level": _raise_by_criticality("warning", job), "kind": "job", "slug": slug,
-                "class": "parcial", "consecutive": consecutive,
-                "text": f"{job['name']}: {job.get('status_detail') or 'cierre parcial'}",
-            })
+            alerts.append(_notif(
+                "job", _raise_by_criticality("warning", job),
+                f"{job['name']}: {job.get('status_detail') or 'cierre parcial'}",
+                slug=slug, cls="parcial", consecutive=consecutive, ts=when,
+                details=_job_details(job, inc, "parcial"),
+            ))
         elif job.get("omitted"):
-            alerts.append({
-                "level": "warning", "kind": "job", "slug": slug,
-                "class": "contencion", "consecutive": consecutive,
-                "text": f"{job['name']}: ronda omitida (cola ocupada); se reintenta en el próximo ciclo",
-            })
+            alerts.append(_notif(
+                "job", "warning",
+                f"{job['name']}: ronda omitida (cola ocupada); se reintenta en el próximo ciclo",
+                slug=slug, cls="contencion", consecutive=consecutive, ts=when,
+                details=_job_details(job, inc, "contencion"),
+            ))
         elif status == "TARDE":
-            alerts.append({
-                "level": _raise_by_criticality("warning", job), "kind": "job", "slug": slug,
-                "text": f"{job['name']}: ejecución atrasada",
-            })
+            alerts.append(_notif(
+                "job", _raise_by_criticality("warning", job),
+                f"{job['name']}: ejecución atrasada",
+                slug=slug, ts=when, details=_job_details(job, inc, None),
+            ))
         elif status == "NUNCA":
-            alerts.append({
-                "level": _raise_by_criticality("warning", job), "kind": "job", "slug": slug,
-                "text": f"{job['name']}: sin ejecuciones registradas",
-            })
+            alerts.append(_notif(
+                "job", _raise_by_criticality("warning", job),
+                f"{job['name']}: sin ejecuciones registradas",
+                slug=slug, ts=when, details=_job_details(job, inc, None),
+            ))
     if not files.nas_ready():
-        alerts.append({
-            "level": "danger", "kind": "nas",
-            "text": f"El NAS no está montado en {config.NAS_MOUNT}",
-        })
+        alerts.append(_notif(
+            "nas", "danger", f"El NAS no está montado en {config.NAS_MOUNT}",
+            details=[{"label": "Ruta", "value": str(config.NAS_MOUNT)}],
+        ))
     else:
         stats = sizes.nas_stats()
         if stats and stats["percent"] >= config.NAS_MIN_FREE_PCT:
-            alerts.append({
-                "level": "warning", "kind": "nas",
-                "text": f"NAS al {stats['percent']}% de uso",
-            })
+            alerts.append(_notif(
+                "nas", "warning", f"NAS al {stats['percent']}% de uso",
+                details=[
+                    {"label": "Uso", "value": f"{stats['percent']}%"},
+                    {"label": "Umbral", "value": f"{config.NAS_MIN_FREE_PCT}%"},
+                ],
+            ))
     if not db.available():
-        alerts.append({
-            "level": "warning", "kind": "db",
-            "text": "MySQL no disponible: modo lectura (sin edición ni historial)",
-        })
+        alerts.append(_notif(
+            "db", "warning", "MySQL no disponible: modo lectura (sin edición ni historial)",
+        ))
     skew = _clock_skew(jobs)
     if skew:
-        alerts.append({
-            "level": "warning", "kind": "clock",
-            "text": f"Los logs van {skew} h por delante del reloj del portal: "
-                    "revisa BACKUP_TZ (¿UTC?) o la zona del host",
-        })
+        alerts.append(_notif(
+            "clock", "warning",
+            f"Los logs van {skew} h por delante del reloj del portal: "
+            "revisa BACKUP_TZ (¿UTC?) o la zona del host",
+        ))
     # Una sola alerta agregada: el estado ya se evalúa con el cron instalado, así
     # que el desvío de la BD no es operativo, pero conviene saber que el portal y
     # el cron no dicen lo mismo (p. ej. tras un install.sh).
     drifted = [job for job in jobs if job.get("enabled") and job.get("schedule_drift")]
     if drifted and config.MANAGE_CRON:
         names = ", ".join(str(job.get("name") or job["slug"]) for job in drifted)
-        alerts.append({
-            "level": "warning", "kind": "schedule",
-            "slugs": [job["slug"] for job in drifted],
-            "text": f"{len(drifted)} tarea(s) difieren del cron instalado ({names}); "
-                    "el estado se evalúa con el cron",
-        })
+        alerts.append(_notif(
+            "schedule", "warning",
+            f"{len(drifted)} tarea(s) difieren del cron instalado ({names}); "
+            "el estado se evalúa con el cron",
+            details=[{"label": "Tareas", "value": names}],
+            extra={"slugs": [job["slug"] for job in drifted]},
+        ))
     return alerts
 
 
@@ -601,13 +695,14 @@ async def login(payload: LoginIn, response: Response):
         secure=config.COOKIE_SECURE,
         samesite="lax",
         path="/",
+        domain=config.COOKIE_DOMAIN or None,
     )
     return {"username": user["username"], "role": user["role"]}
 
 
 @router.post("/auth/logout")
 async def logout(response: Response):
-    response.delete_cookie(config.SESSION_COOKIE, path="/")
+    response.delete_cookie(config.SESSION_COOKIE, path="/", domain=config.COOKIE_DOMAIN or None)
     return {"ok": True}
 
 

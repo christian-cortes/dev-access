@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -7,7 +8,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from . import db, probe
+from . import db, notify, probe
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("portal-api")
@@ -53,6 +54,7 @@ async def run_checks():
         ]
         db.record_checks(entries)
         db.purge_old_checks()
+        _report_transitions(db.latest_statuses())
         state.last_run = db.now_utc()
         db.set_meta("last_run", state.last_run)
         log.info("chequeo completado: %s servicios", len(entries))
@@ -60,6 +62,33 @@ async def run_checks():
         log.exception("fallo el ciclo de chequeo")
     finally:
         state.refreshing = False
+
+
+def _report_transitions(statuses):
+    """Publica caídas/recuperaciones comparando con el ciclo anterior."""
+    raw = db.get_meta("notify_prev_states")
+    try:
+        prev = json.loads(raw) if raw else {}
+    except ValueError:
+        prev = {}
+    services = {s["slug"]: s for s in state.catalog.get("services", [])}
+    for slug, st in statuses.items():
+        cur = st.get("state")
+        old = prev.get(slug)
+        if cur == old:
+            continue
+        svc = services.get(slug) or {}
+        name = svc.get("name", slug)
+        url = svc.get("url", "")
+        if cur == "offline":
+            notify.publish("index", "service.down", f"{name} no responde",
+                           body=st.get("error") or f"Sin respuesta ({st.get('code') or 'sin código'}).",
+                           url=url, dedupe_key=slug)
+        elif old == "offline" and cur in ("online", "auth"):
+            notify.publish("index", "service.recovered", f"{name} recuperado",
+                           body="El servicio vuelve a responder.", url=url, dedupe_key=slug)
+    db.set_meta("notify_prev_states",
+                json.dumps({slug: st.get("state") for slug, st in statuses.items()}))
 
 
 async def _loop():
