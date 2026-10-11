@@ -62,8 +62,8 @@ code() {
 
 info "HTTP acceso (.win, cert publico sin -k)"
 c="$(code index.cortexdev.win /)"
-if [ "$c" = "200" ]; then
-  ok "index.cortexdev.win / -> 200"
+if [ "$c" = "200" ] || [ "$c" = "302" ]; then
+  ok "index.cortexdev.win / -> $c (SSO login unico)"
 else
   bad "index.cortexdev.win / -> ${c:-000}"
   echo "       Si es 403/404, Pi-hole sigue ocupando el 443:"
@@ -86,21 +86,27 @@ else
 fi
 
 c="$(code index.cortexdev.win /laravel.html)"
-if [ "$c" = "200" ]; then
-  ok "index.cortexdev.win /laravel.html -> 200"
+if [ "$c" = "200" ] || [ "$c" = "302" ]; then
+  ok "index.cortexdev.win /laravel.html -> $c (SSO login unico)"
 else
   bad "index.cortexdev.win /laravel.html -> ${c:-000}"
 fi
 
 # Portal de copias (nginx -> backupcsr-web 127.0.0.1:8089).
 c="$(code copias.cortexdev.win /)"
-if [ "$c" = "200" ]; then
-  ok "copias.cortexdev.win / -> 200"
+if [ "$c" = "200" ] || [ "$c" = "302" ]; then
+  ok "copias.cortexdev.win / -> $c (SSO login unico)"
 else
   bad "copias.cortexdev.win / -> ${c:-000} (docker exec access_nginx nginx -s reload; systemctl status backupcsr-web)"
 fi
 
-c="$(code copias.cortexdev.win /api/health)"
+# /api/health queda fuera del SSO; reintenta por si el servicio acaba de reiniciar.
+c=""
+for _ in 1 2 3 4 5 6; do
+  c="$(code copias.cortexdev.win /api/health)"
+  [ "$c" = "200" ] && break
+  sleep 3
+done
 if [ "$c" = "200" ]; then
   ok "copias.cortexdev.win /api/health -> 200"
 else
@@ -185,7 +191,9 @@ else
   bad "GET /api/health -> ${c:-000} (docker logs --tail 40 portal_api)"
 fi
 
-body="$(curl -sk -H 'Host: index.cortexdev.win' https://127.0.0.1/api/portal 2>/dev/null || true)"
+# El catálogo del portal ahora requiere sesión (SSO) si se pide por nginx; se
+# consulta portal-api directamente en loopback, que no aplica auth_request.
+body="$(curl -s http://127.0.0.1:8088/api/portal 2>/dev/null || true)"
 if printf '%s' "$body" | grep -q '"services"'; then
   n="$(printf '%s' "$body" | grep -o '"category"' | wc -l)"
   ok "GET /api/portal -> catalogo ($n servicios)"
@@ -252,7 +260,12 @@ fi
 info "Puertos"
 if command -v ss >/dev/null; then
   for p in 80 443 8080 8443 8088 8089 3000 9090; do
-    if ss -ltn 2>/dev/null | grep -q ":$p "; then
+    found=0
+    for _ in 1 2 3 4 5; do
+      if ss -ltn 2>/dev/null | grep -q ":$p "; then found=1; break; fi
+      sleep 2
+    done
+    if [ "$found" = "1" ]; then
       ok "puerto $p escuchando"
     else
       bad "nada escuchando en $p"
