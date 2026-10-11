@@ -83,10 +83,11 @@ def _report_transitions(statuses):
         if cur == "offline":
             notify.publish("index", "service.down", f"{name} no responde",
                            body=st.get("error") or f"Sin respuesta ({st.get('code') or 'sin código'}).",
-                           url=url, dedupe_key=slug)
+                           url=url, dedupe_key=slug, scope=slug)
         elif old == "offline" and cur in ("online", "auth"):
             notify.publish("index", "service.recovered", f"{name} recuperado",
-                           body="El servicio vuelve a responder.", url=url, dedupe_key=slug)
+                           body="El servicio vuelve a responder.", url=url, dedupe_key=slug,
+                           scope=slug)
     db.set_meta("notify_prev_states",
                 json.dumps({slug: st.get("state") for slug, st in statuses.items()}))
 
@@ -211,4 +212,21 @@ async def status(refresh: int = 0):
         "last_run": state.last_run,
         "refreshing": state.refreshing,
         "statuses": db.latest_statuses(),
+    }
+
+
+@app.get("/api/scopes")
+async def scopes():
+    """Lista ligera de proyectos/servicios para configurar avisos por proyecto (área index)."""
+    titles = {c["slug"]: c.get("title", c["slug"]) for c in state.categories}
+    return {
+        "scopes": [
+            {
+                "slug": service["slug"],
+                "name": service["name"],
+                "group": service.get("category") or "",
+                "group_title": titles.get(service.get("category") or "", ""),
+            }
+            for service in state.catalog.get("services", [])
+        ]
     }

@@ -36,12 +36,22 @@ CREATE TABLE IF NOT EXISTS events (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     area        TEXT NOT NULL,
     event_key   TEXT NOT NULL,
+    scope       TEXT NOT NULL DEFAULT '',
     level       TEXT NOT NULL,
     title       TEXT NOT NULL,
     body        TEXT NOT NULL DEFAULT '',
     url         TEXT NOT NULL DEFAULT '',
     dedupe_key  TEXT NOT NULL DEFAULT '',
     created_at  INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS scope_prefs (
+    username    TEXT NOT NULL,
+    area        TEXT NOT NULL,
+    scope       TEXT NOT NULL,
+    enabled     INTEGER NOT NULL DEFAULT 1,
+    updated_at  INTEGER NOT NULL,
+    PRIMARY KEY (username, area, scope)
 );
 CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
 CREATE INDEX IF NOT EXISTS idx_events_dedupe ON events(dedupe_key, created_at);
@@ -78,7 +88,15 @@ def get_conn():
 def init_db():
     conn = get_conn()
     conn.executescript(SCHEMA)
+    _migrate(conn)
     conn.commit()
+
+
+def _migrate(conn) -> None:
+    """Migración idempotente para BD creadas con un esquema anterior."""
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(events)")}
+    if "scope" not in cols:
+        conn.execute("ALTER TABLE events ADD COLUMN scope TEXT NOT NULL DEFAULT ''")
 
 
 def now() -> int:
@@ -186,6 +204,35 @@ def all_user_prefs(username: str) -> dict:
     return {area: get_prefs(username, area) for area in catalog.AREAS}
 
 
+# --- Preferencias por scope (proyecto/tarea) -------------------------------
+# Solo se guarda el on/off. La ausencia de fila significa "habilitado": hereda
+# la configuración del área, así que por defecto se entrega todo como antes.
+
+def get_scope_prefs(username: str, area: str) -> dict[str, bool]:
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT scope, enabled FROM scope_prefs WHERE username=? AND area=?", (username, area)
+    ).fetchall()
+    return {row["scope"]: bool(row["enabled"]) for row in rows}
+
+
+def set_scope_prefs(username: str, area: str, items: dict) -> dict[str, bool]:
+    ts = now()
+    conn = get_conn()
+    with conn:
+        for scope, enabled in items.items():
+            conn.execute(
+                """
+                INSERT INTO scope_prefs(username, area, scope, enabled, updated_at)
+                VALUES(?,?,?,?,?)
+                ON CONFLICT(username, area, scope) DO UPDATE SET
+                    enabled=excluded.enabled, updated_at=excluded.updated_at
+                """,
+                (username, area, str(scope), 1 if enabled else 0, ts),
+            )
+    return get_scope_prefs(username, area)
+
+
 # --- Eventos ---------------------------------------------------------------
 
 def recent_dedupe(dedupe_key: str, window: int) -> bool:
@@ -200,15 +247,15 @@ def recent_dedupe(dedupe_key: str, window: int) -> bool:
 
 
 def insert_event(area: str, event_key: str, level: str, title: str, body: str,
-                 url: str, dedupe_key: str) -> int:
+                 url: str, dedupe_key: str, scope: str = "") -> int:
     conn = get_conn()
     with conn:
         cur = conn.execute(
             """
-            INSERT INTO events(area, event_key, level, title, body, url, dedupe_key, created_at)
-            VALUES(?,?,?,?,?,?,?,?)
+            INSERT INTO events(area, event_key, scope, level, title, body, url, dedupe_key, created_at)
+            VALUES(?,?,?,?,?,?,?,?,?)
             """,
-            (area, event_key, level, title, body, url, dedupe_key, now()),
+            (area, event_key, scope, level, title, body, url, dedupe_key, now()),
         )
     return int(cur.lastrowid)
 

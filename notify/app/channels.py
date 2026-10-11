@@ -155,13 +155,23 @@ def dispatch(event: dict) -> dict:
     body = event["body"]
     url = event.get("url") or ""
     event_id = event["id"]
+    scope = event.get("scope") or ""
     stats = {"fcm_sent": 0, "fcm_skipped": 0, "email": "skipped"}
 
+    scope_cache: dict[str, dict] = {}
     for sub in db.subscriptions_for_area(area):
         prefs = db.get_prefs(sub["username"], area)
         if not _allows(prefs, event_key, level):
             stats["fcm_skipped"] += 1
             continue
+        if scope:
+            allowed = scope_cache.get(sub["username"])
+            if allowed is None:
+                allowed = db.get_scope_prefs(sub["username"], area)
+                scope_cache[sub["username"]] = allowed
+            if allowed.get(scope, True) is False:
+                stats["fcm_skipped"] += 1
+                continue
         if "fcm" not in (prefs.get("channels") or ["fcm"]):
             stats["fcm_skipped"] += 1
             continue

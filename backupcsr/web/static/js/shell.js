@@ -737,8 +737,8 @@ function setupTopbar() {
   setupFilters();
   const clearAlertsBtn = $('alerts-clear');
   if (clearAlertsBtn) clearAlertsBtn.addEventListener('click', clearAlerts);
-  const openPush = $('open-push');
-  if (openPush) openPush.addEventListener('click', () => { closeAlertsMenu(); openModal('pushModal'); });
+  const pushSettings = $('push-settings-toggle');
+  if (pushSettings) pushSettings.addEventListener('click', () => { closeAlertsMenu(); openModal('pushModal'); });
   $('menu-password').addEventListener('click', () => openPassword(state.user.username, true));
   $('password-save').addEventListener('click', savePassword);
   $('logout-btn').addEventListener('click', async () => {

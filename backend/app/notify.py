@@ -17,7 +17,8 @@ def configured() -> bool:
 
 
 def publish(area: str, event_key: str, title: str, body: str = "",
-            level: str | None = None, url: str = "", dedupe_key: str = "") -> None:
+            level: str | None = None, url: str = "", dedupe_key: str = "",
+            scope: str = "") -> None:
     if not configured():
         return
     payload = {
@@ -28,6 +29,8 @@ def publish(area: str, event_key: str, title: str, body: str = "",
         "url": url,
         "dedupe_key": dedupe_key,
     }
+    if scope:
+        payload["scope"] = scope
     if level:
         payload["level"] = level
     data = json.dumps(payload).encode("utf-8")

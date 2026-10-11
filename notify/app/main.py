@@ -168,6 +168,16 @@ class PreferencesIn(BaseModel):
     prefs: dict
 
 
+class ScopeItem(BaseModel):
+    scope: str
+    enabled: bool = True
+
+
+class ScopesIn(BaseModel):
+    area: str
+    scopes: list[ScopeItem] = []
+
+
 class TestIn(BaseModel):
     area: str
 
@@ -213,7 +223,10 @@ async def push_unsubscribe(payload: UnsubscribeIn, user: dict = Depends(require_
 
 @app.get("/api/push/preferences")
 async def push_preferences(user: dict = Depends(require_user)):
-    return {"prefs": db.all_user_prefs(user["username"])}
+    return {
+        "prefs": db.all_user_prefs(user["username"]),
+        "scopes": {area: db.get_scope_prefs(user["username"], area) for area in catalog.AREAS},
+    }
 
 
 @app.put("/api/push/preferences")
@@ -221,6 +234,19 @@ async def push_set_preferences(payload: PreferencesIn, user: dict = Depends(requ
     if payload.area not in catalog.AREAS:
         raise HTTPException(status_code=400, detail="area inválida")
     return {"prefs": db.set_prefs(user["username"], payload.area, payload.prefs or {})}
+
+
+@app.put("/api/push/scopes")
+async def push_set_scopes(payload: ScopesIn, user: dict = Depends(require_user)):
+    """Activa/desactiva avisos por proyecto/tarea (solo on/off; el resto hereda del área)."""
+    if payload.area not in catalog.AREAS:
+        raise HTTPException(status_code=400, detail="area inválida")
+    items = {
+        item.scope.strip()[:128]: item.enabled
+        for item in payload.scopes
+        if item.scope and item.scope.strip()
+    }
+    return {"scopes": db.set_scope_prefs(user["username"], payload.area, items)}
 
 
 @app.post("/api/push/test")
@@ -239,6 +265,7 @@ class EventIn(BaseModel):
     title: str
     body: str = ""
     level: str | None = None
+    scope: str = ""
     url: str = ""
     dedupe_key: str = ""
 
@@ -264,14 +291,17 @@ async def ingest_event(payload: EventIn, authorization: str = Header(default="")
             f"{payload.area}:{payload.event_key}:{payload.dedupe_key}",
             config.DEDUPE_WINDOW):
         return {"ok": True, "deduped": True}
+    scope = (payload.scope or "").strip()[:128]
     event_id = await asyncio.to_thread(
         db.insert_event, payload.area, payload.event_key, level,
         payload.title, payload.body, payload.url,
         f"{payload.area}:{payload.event_key}:{payload.dedupe_key}" if payload.dedupe_key else "",
+        scope,
     )
     event = {
         "id": event_id, "area": payload.area, "event_key": payload.event_key,
         "level": level, "title": payload.title, "body": payload.body, "url": payload.url,
+        "scope": scope,
     }
     stats = await asyncio.to_thread(channels.dispatch, event)
     return {"ok": True, "id": event_id, "stats": stats}

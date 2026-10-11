@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 # level por defecto de cada evento; el emisor puede subirlo (nunca bajarlo).
+# `scoped`: el área admite activar/desactivar avisos por proyecto/tarea (slug).
 AREAS = {
     "copias": {
         "title": "Copias de seguridad",
+        "scoped": True,
         "events": {
             "incident.open": {"title": "Incidente abierto", "level": "critical"},
             "incident.recovered": {"title": "Incidente resuelto", "level": "info"},
@@ -15,6 +17,7 @@ AREAS = {
     },
     "index": {
         "title": "Portal (estado de servicios)",
+        "scoped": True,
         "events": {
             "service.down": {"title": "Servicio caído", "level": "critical"},
             "service.recovered": {"title": "Servicio recuperado", "level": "info"},
@@ -22,6 +25,7 @@ AREAS = {
     },
     "ups": {
         "title": "UPS (energía)",
+        "scoped": False,
         "events": {
             "ups.on_battery": {"title": "Corte de energía", "level": "warning"},
             "ups.low_battery": {"title": "Batería baja", "level": "critical"},
@@ -41,6 +45,7 @@ def areas() -> list[dict]:
         {
             "slug": slug,
             "title": area["title"],
+            "scoped": bool(area.get("scoped")),
             "events": [
                 {"key": key, "title": meta["title"], "level": meta["level"]}
                 for key, meta in area["events"].items()

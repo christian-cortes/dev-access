@@ -286,6 +286,18 @@ td.status .meta {
 .theme-toggle svg { width: 18px; height: 18px; display: block; }
 .theme-toggle:hover { border-color: var(--bs-primary); }
 
+/* Botón de ajustes de notificaciones (lo inyecta app.js) */
+.settings-toggle {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+}
+
+.settings-toggle svg { width: 18px; height: 18px; display: block; }
+.settings-toggle:hover { border-color: var(--bs-primary); }
+
 /* Barra derecha del header: navegación + campana + usuario + salir en una fila */
 .header-tools { margin-left: auto; justify-content: flex-end; row-gap: .5rem; }
 .session-user { font-weight: 600; white-space: nowrap; }
@@ -362,11 +374,7 @@ td.status .meta {
 }
 .notif-danger .notif-level { color: var(--err); }
 
-/* Panel de notificaciones push (push-client.js) */
-.notif-menu-foot {
-  padding: 10px 14px; border-top: 1px solid var(--bs-border-color);
-  text-align: right; font-size: 12px;
-}
+/* Ajustes de notificaciones push (push-client.js) */
 .push-note { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
 .push-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .push-btn {
@@ -381,6 +389,17 @@ td.status .meta {
 .push-select {
   margin-left: auto; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg);
   color: inherit; border-radius: 6px; padding: 2px 6px;
+}
+.push-scopes { display: grid; gap: 8px; margin-top: 16px; border-top: 1px solid var(--bs-border-color); padding-top: 12px; }
+.push-scopes-title { font-size: 14px; margin: 0; }
+.push-scopes-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.push-search {
+  flex: 1 1 180px; min-width: 140px; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg);
+  color: inherit; border-radius: 6px; padding: 4px 8px; font-size: 13px;
+}
+.push-scopes-list { display: grid; gap: 4px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
+.push-scopes-group {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 8px 0 2px;
 }
 
 /* Iconos y badges propios (los genera app.js) */

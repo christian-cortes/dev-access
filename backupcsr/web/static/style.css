@@ -450,6 +450,17 @@ a:hover { color: var(--bs-link-hover-color); text-decoration: underline; }
   margin-left: auto; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg);
   color: inherit; border-radius: 6px; padding: 2px 6px;
 }
+.push-scopes { display: grid; gap: 8px; margin-top: 16px; border-top: 1px solid var(--bs-border-color); padding-top: 12px; }
+.push-scopes-title { font-size: 14px; margin: 0; }
+.push-scopes-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.push-search {
+  flex: 1 1 180px; min-width: 140px; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg);
+  color: inherit; border-radius: 6px; padding: 4px 8px; font-size: 13px;
+}
+.push-scopes-list { display: grid; gap: 4px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
+.push-scopes-group {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 8px 0 2px;
+}
 
 /* ------------------------------ disco de uso ------------------------------ */
 

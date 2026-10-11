@@ -1,9 +1,12 @@
 /* Cliente de notificaciones push (FCM web) para las apps de CortexDev.
  *
  * Se activa donde exista <div id="push-settings" data-area="copias|index|ups">.
+ * Opcionalmente acepta data-scopes-url (lista ligera de proyectos/tareas) y
+ * data-scopes-label (proyecto|tarea) para configurar el on/off de cada uno.
  * Flujo: pedir permiso, registrar el service worker, obtener el token FCM,
- * enviarlo a /api/push/subscribe y permitir configurar eventos/severidad/
- * horario silencioso del área. Requiere sesión (la cookie SSO viaja al proxy).
+ * enviarlo a /api/push/subscribe y configurar eventos/severidad/silencio del
+ * área y, si aplica, los avisos por proyecto/tarea. Requiere sesión (la cookie
+ * SSO viaja al proxy).
  */
 (function () {
   'use strict';
@@ -13,9 +16,14 @@
   if (!host) return;
 
   var area = host.getAttribute('data-area') || '';
+  var scopesUrl = host.getAttribute('data-scopes-url') || '';
+  var scopeLabel = host.getAttribute('data-scopes-label') || 'proyecto';
   var TOKEN_KEY = 'cortexpush.token.' + area;
 
-  var state = { config: null, messaging: null, swReg: null, token: null, prefs: null };
+  var state = {
+    config: null, messaging: null, swReg: null, token: null, prefs: null,
+    scopes: null, scopePrefs: {}, scopeFilter: '',
+  };
 
   function loadScript(src) {
     return new Promise(function (resolve, reject) {
@@ -35,10 +43,11 @@
     var node = document.createElement(tag);
     Object.keys(attrs || {}).forEach(function (key) {
       var value = attrs[key];
-      if (value === null || value === undefined) return;
+      if (value === null || value === undefined || value === false) return;
       if (key === 'class') node.className = value;
       else if (key === 'text') node.textContent = value;
       else if (key.indexOf('on') === 0) node.addEventListener(key.slice(2), value);
+      else if (value === true) node.setAttribute(key, '');
       else node.setAttribute(key, value);
     });
     (children || []).forEach(function (child) {
@@ -89,6 +98,10 @@
     host.appendChild(actions);
 
     if (state.prefs) host.appendChild(prefsForm(state.prefs));
+    var meta = areaInfo();
+    if (state.scopes && state.scopes.length && meta && meta.scoped === true) {
+      host.appendChild(scopeForm());
+    }
   }
 
   function prefsForm(prefs) {
@@ -139,6 +152,92 @@
     ]));
 
     return box;
+  }
+
+  function scopeForm() {
+    var box = el('div', { class: 'push-scopes' });
+    box.appendChild(el('h3', { class: 'push-scopes-title', text: 'Por ' + scopeLabel }));
+    box.appendChild(el('p', {
+      class: 'push-note',
+      text: 'Elige qué ' + scopeLabel + 's quieres recibir. Los demás ajustes se heredan del área.',
+    }));
+
+    var tools = el('div', { class: 'push-scopes-tools' });
+    tools.appendChild(el('input', {
+      class: 'push-search', type: 'search', value: state.scopeFilter,
+      placeholder: 'Buscar ' + scopeLabel + '…',
+      oninput: function (e) { state.scopeFilter = e.target.value.toLowerCase(); renderScopeList(listBox); },
+    }));
+    tools.appendChild(el('button', { class: 'push-btn', type: 'button', text: 'Todos', onclick: function () { setAllScopes(true); } }));
+    tools.appendChild(el('button', { class: 'push-btn', type: 'button', text: 'Ninguno', onclick: function () { setAllScopes(false); } }));
+    box.appendChild(tools);
+
+    var listBox = el('div', { class: 'push-scopes-list' });
+    box.appendChild(listBox);
+    renderScopeList(listBox);
+    return box;
+  }
+
+  function renderScopeList(listBox) {
+    listBox.textContent = '';
+    var filter = state.scopeFilter;
+    var shown = 0;
+    var lastGroup = null;
+    (state.scopes || []).forEach(function (item) {
+      var label = item.name || item.slug;
+      if (filter && (item.slug + ' ' + label).toLowerCase().indexOf(filter) < 0) return;
+      if (item.group_title && item.group !== lastGroup) {
+        listBox.appendChild(el('div', { class: 'push-scopes-group', text: item.group_title }));
+        lastGroup = item.group;
+      }
+      listBox.appendChild(el('label', { class: 'push-row switch' }, [
+        el('input', {
+          type: 'checkbox', checked: state.scopePrefs[item.slug] !== false,
+          onchange: function (e) {
+            var previous = state.scopePrefs[item.slug];
+            state.scopePrefs[item.slug] = e.target.checked;
+            saveScopes(item.slug, e.target.checked, previous);
+          },
+        }),
+        el('span', { text: label }),
+      ]));
+      shown += 1;
+    });
+    if (!shown) listBox.appendChild(el('p', { class: 'push-note', text: 'Sin resultados.' }));
+  }
+
+  function setAllScopes(value) {
+    var snapshot = Object.assign({}, state.scopePrefs);
+    var batch = [];
+    (state.scopes || []).forEach(function (item) {
+      state.scopePrefs[item.slug] = value;
+      batch.push({ scope: item.slug, enabled: value });
+    });
+    render();
+    saveScopesBatch(batch, function () { state.scopePrefs = snapshot; render(); });
+  }
+
+  function saveScopes(scope, enabled, previous) {
+    return saveScopesBatch([{ scope: scope, enabled: enabled }], function () {
+      state.scopePrefs[scope] = previous;
+      render();
+    });
+  }
+
+  async function saveScopesBatch(batch, onError) {
+    if (!batch.length) return;
+    try {
+      var res = await api('/scopes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ area: area, scopes: batch }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+    } catch (err) {
+      console.error('[push] no se pudieron guardar los ' + scopeLabel + 's:', err);
+      if (onError) onError();
+      window.alert('No se pudieron guardar los cambios de ' + scopeLabel + 's.');
+    }
   }
 
   function areaInfo() {
@@ -266,8 +365,20 @@
       if (prefsRes.ok) {
         var prefsData = await prefsRes.json();
         state.prefs = prefsData.prefs[area] || null;
+        state.scopePrefs = (prefsData.scopes && prefsData.scopes[area]) || {};
       }
     } catch (err) { /* sin prefs */ }
+    if (scopesUrl) {
+      try {
+        var scopesRes = await fetch(scopesUrl, { credentials: 'same-origin' });
+        if (scopesRes.ok) {
+          var scopesData = await scopesRes.json();
+          state.scopes = scopesData.scopes || [];
+        }
+      } catch (err) {
+        console.error('[push] no se pudo leer la lista de ' + scopeLabel + 's:', err);
+      }
+    }
     render();
   }
 

@@ -192,7 +192,7 @@ def push_enabled() -> bool:
     return bool(config.NOTIFY_URL and config.NOTIFY_INGEST_TOKEN)
 
 
-def _publish(event_key: str, title: str, body: str, dedupe_key: str) -> None:
+def _publish(event_key: str, title: str, body: str, dedupe_key: str, scope: str = "") -> None:
     payload = {
         "area": "copias",
         "event_key": event_key,
@@ -201,6 +201,8 @@ def _publish(event_key: str, title: str, body: str, dedupe_key: str) -> None:
         "url": "https://copias.cortexdev.win",
         "dedupe_key": dedupe_key,
     }
+    if scope:
+        payload["scope"] = scope
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         config.NOTIFY_URL + "/api/events",
@@ -253,7 +255,8 @@ def flush_push() -> int:
             continue
         name = row.get("job_name") or row.get("job_slug") or "tarea"
         _publish("incident.open", f"{name}: falló",
-                 _incident_body(row, "Incidente abierto"), f"incident-{row['id']}")
+                 _incident_body(row, "Incidente abierto"), f"incident-{row['id']}",
+                 scope=row.get("job_slug") or "")
         _pushed_open.add(row["id"])
         count += 1
     try:
@@ -265,7 +268,8 @@ def flush_push() -> int:
             continue
         name = row.get("job_name") or row.get("job_slug") or "tarea"
         _publish("incident.recovered", f"{name}: recuperado",
-                 _incident_body(row, "Incidente resuelto"), f"incident-{row['id']}-ok")
+                 _incident_body(row, "Incidente resuelto"), f"incident-{row['id']}-ok",
+                 scope=row.get("job_slug") or "")
         _pushed_resolved.add(row["id"])
         count += 1
     return count

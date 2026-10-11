@@ -783,6 +783,32 @@ async def list_jobs(user: dict = Depends(auth.current_user)):
     }
 
 
+@router.get("/scopes")
+async def list_scopes(user: dict = Depends(auth.current_user)):
+    """Lista ligera de tareas (jobs activos) para configurar avisos push por tarea."""
+    if not db.available():
+        return {"scopes": []}
+    try:
+        rows = db.query(
+            "SELECT slug, name, criticality FROM jobs WHERE enabled = 1 ORDER BY sort, name"
+        )
+    except Exception:  # noqa: BLE001
+        log.exception("no se pudieron leer los jobs para la lista de scopes")
+        return {"scopes": []}
+    labels = {"alta": "Criticidad alta", "media": "Criticidad media", "baja": "Criticidad baja"}
+    return {
+        "scopes": [
+            {
+                "slug": row["slug"],
+                "name": row["name"] or row["slug"],
+                "group": row.get("criticality") or "",
+                "group_title": labels.get(row.get("criticality") or "", ""),
+            }
+            for row in rows
+        ]
+    }
+
+
 @router.get("/incidents")
 async def list_incidents(limit: int = 50, user: dict = Depends(auth.current_user)):
     """Incidentes abiertos y últimos resueltos (historial de errores)."""
