@@ -1,5 +1,5 @@
 /* Shell del portal: app-shell, routing, estado compartido y modales comunes. */
-import { api } from './api.js';
+import { api, LOGIN_URL } from './api.js';
 import { applyDataIcons } from './icons.js';
 import {
   $, el, icon, pill, fmtDate, fmtDuration, fmtGb, relTime, toast, confirmDialog,
@@ -224,9 +224,72 @@ const CLASS_META = {
   parcial: 'Parcial',
 };
 
+/* Descarte por navegador: ids de avisos que el usuario limpió. */
+const NOTIF_ACK_KEY = 'backupcsr.notif.ack.v1';
+
+function notifId(alert) {
+  if (alert.id) return alert.id;
+  const arm = alert.slug ? alert.slug + ':' + (alert.class || '') + ':' : '';
+  return 'copias:' + alert.kind + ':' + arm + alert.level;
+}
+
+function ackedSet() {
+  try {
+    const raw = localStorage.getItem(NOTIF_ACK_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function saveAcked(set) {
+  try { localStorage.setItem(NOTIF_ACK_KEY, JSON.stringify(Array.from(set))); } catch (e) {}
+}
+
+function closeAlertsMenu() {
+  const toggle = $('alerts-toggle');
+  if (!toggle || !window.bootstrap || !bootstrap.Dropdown) return;
+  const inst = bootstrap.Dropdown.getInstance(toggle);
+  if (inst) inst.hide();
+}
+
+function dismissAlert(id) {
+  const set = ackedSet();
+  set.add(id);
+  saveAcked(set);
+  renderAlerts();
+}
+
+function clearAlerts() {
+  const set = ackedSet();
+  ((state.summary && state.summary.alerts) || [])
+    .filter((alert) => alert.kind !== 'nas')
+    .forEach((alert) => set.add(notifId(alert)));
+  saveAcked(set);
+  renderAlerts();
+}
+
+function alertDanger(alert) {
+  return alert.severity ? alert.severity === 'critical' : alert.level === 'danger';
+}
+
+function detailBox(alert) {
+  const details = Array.isArray(alert.details) ? alert.details : [];
+  if (!details.length) return null;
+  const box = el('div', { class: 'notif-detail' });
+  box.hidden = true;
+  details.forEach((row) => {
+    box.appendChild(el('div', { class: 'notif-detail-row' }, [
+      el('span', { class: 'notif-detail-label', text: row.label }),
+      el('span', { class: 'notif-detail-value', text: row.value }),
+    ]));
+  });
+  return box;
+}
+
 function notifRow(alert) {
   const meta = NOTIF_META[alert.kind] || { icon: 'alert', title: 'Aviso' };
-  const danger = alert.level === 'danger';
+  const danger = alertDanger(alert);
   let title = meta.title;
   let text = alert.text;
   if (alert.kind === 'job') {
@@ -239,12 +302,46 @@ function notifRow(alert) {
   if (alert.class && CLASS_META[alert.class]) {
     text = '[' + CLASS_META[alert.class] + '] ' + text;
   }
+
+  const body = el('div', { class: 'notif-body' }, [
+    el('div', { class: 'notif-head' }, [
+      el('div', { class: 'notif-title', text: title }),
+      alert.ts ? el('span', { class: 'notif-time', text: alert.ts }) : null,
+      el('button', {
+        type: 'button', class: 'notif-dismiss', title: 'Descartar', 'aria-label': 'Descartar aviso',
+        onclick: () => dismissAlert(notifId(alert)),
+      }, [icon('x')]),
+    ]),
+    el('div', { class: 'notif-text', text: text }),
+  ]);
+
+  const box = detailBox(alert);
+  if (box) {
+    const toggle = el('button', {
+      type: 'button', class: 'notif-more', text: 'Ver detalle',
+      onclick: () => {
+        box.hidden = !box.hidden;
+        toggle.textContent = box.hidden ? 'Ver detalle' : 'Ocultar detalle';
+      },
+    });
+    body.appendChild(toggle);
+    body.appendChild(box);
+  }
+
+  if (alert.action && alert.action.slug) {
+    body.appendChild(el('button', {
+      type: 'button', class: 'notif-action', text: alert.action.label || 'Ver tarea',
+      onclick: () => {
+        closeAlertsMenu();
+        state.histJob = alert.action.slug;
+        go('historial');
+      },
+    }));
+  }
+
   return el('div', { class: 'notif ' + (danger ? 'notif-danger' : 'notif-warn') }, [
     el('div', { class: 'notif-icon' }, [icon(meta.icon)]),
-    el('div', { class: 'notif-body' }, [
-      el('div', { class: 'notif-title', text: title }),
-      el('div', { class: 'notif-text', text: text }),
-    ]),
+    body,
     el('span', { class: 'notif-level', text: danger ? 'Crítico' : 'Aviso' }),
   ]);
 }
@@ -257,9 +354,20 @@ function renderAlerts() {
   const badge = $('alerts-count');
   const countPill = $('alerts-menu-count');
   const toggle = $('alerts-toggle');
+  const clearBtn = $('alerts-clear');
   const summary = state.summary || {};
-  const alerts = (summary.alerts || []).filter((alert) => alert.kind !== 'nas');
-  const danger = alerts.some((alert) => alert.level === 'danger');
+  const active = (summary.alerts || []).filter((alert) => alert.kind !== 'nas');
+
+  const acked = ackedSet();
+  const activeIds = new Set(active.map(notifId));
+  let pruned = false;
+  Array.from(acked).forEach((id) => {
+    if (!activeIds.has(id)) { acked.delete(id); pruned = true; }
+  });
+  if (pruned) saveAcked(acked);
+
+  const alerts = active.filter((alert) => !acked.has(notifId(alert)));
+  const danger = alerts.some(alertDanger);
   const loaded = !!state.summary;
 
   if (list) {
@@ -268,12 +376,18 @@ function renderAlerts() {
       list.appendChild(el('div', { class: 'alerts-empty' }, [
         el('i', { class: loaded ? 'fa-solid fa-circle-check' : 'fa-regular fa-bell' }),
         el('span', {
-          text: loaded ? 'Sin notificaciones.' : 'Cargando notificaciones…',
+          text: !loaded ? 'Cargando notificaciones…'
+            : (active.length ? 'Sin notificaciones pendientes.' : 'Sin notificaciones.'),
         }),
       ]));
     } else {
       alerts.forEach((alert) => list.appendChild(notifRow(alert)));
     }
+  }
+
+  if (clearBtn) {
+    clearBtn.hidden = alerts.length === 0;
+    clearBtn.textContent = 'Limpiar todo';
   }
 
   if (badge) {
@@ -621,11 +735,15 @@ function setupFilters() {
 
 function setupTopbar() {
   setupFilters();
+  const clearAlertsBtn = $('alerts-clear');
+  if (clearAlertsBtn) clearAlertsBtn.addEventListener('click', clearAlerts);
+  const openPush = $('open-push');
+  if (openPush) openPush.addEventListener('click', () => { closeAlertsMenu(); openModal('pushModal'); });
   $('menu-password').addEventListener('click', () => openPassword(state.user.username, true));
   $('password-save').addEventListener('click', savePassword);
   $('logout-btn').addEventListener('click', async () => {
     try { await api.post('/auth/logout'); } catch (e) {}
-    location.href = '/login.html';
+    location.href = LOGIN_URL;
   });
 }
 
@@ -661,8 +779,8 @@ async function bootstrap() {
   try {
     state.user = await api.get('/auth/me');
   } catch (err) {
-    // 401 ya redirige a /login.html desde api.js; cualquier otro fallo se avisa
-    // (antes se salía en silencio y el portal quedaba muerto y sin datos).
+    // 401 ya redirige al login central desde api.js; cualquier otro fallo se
+    // avisa (antes se salía en silencio y el portal quedaba muerto y sin datos).
     if (!err || err.status !== 401) {
       state.loading = false;
       state.authError = 'No se pudo validar la sesión: ' + describeError(err) +

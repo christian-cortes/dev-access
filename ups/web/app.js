@@ -54,6 +54,7 @@
     energy: { price: 0, currency: "COP" },
     monthCursor: null,
     earliestMonth: null,
+    powerEvents: [],
   };
 
   function statusFromTokens(status) {
@@ -411,6 +412,7 @@
     } else {
       banner.className = "banner hidden";
     }
+    renderNotifications();
   }
 
   const thresholdPlugin = {
@@ -690,11 +692,228 @@
   async function loadPowerEvents() {
     try {
       const res = await fetch(`/api/power-events?range=${state.range}`).then((r) => r.json());
+      state.powerEvents = (res && res.events) || [];
       const realPower = state.summary && state.summary.realpower_nominal;
-      renderPowerEvents(res.events, realPower);
+      renderPowerEvents(state.powerEvents, realPower);
     } catch (_) {
+      state.powerEvents = [];
       renderPowerEvents([]);
     }
+    renderNotifications();
+  }
+
+  /* --- Notificaciones: problemas activos de la UPS (descartables por navegador) --- */
+
+  const NOTIF_ACK_KEY = "nut.notif.ack.v1";
+
+  function notifAcked() {
+    try { return new Set(JSON.parse(localStorage.getItem(NOTIF_ACK_KEY) || "[]")); }
+    catch (_) { return new Set(); }
+  }
+
+  function notifSave(set) {
+    try { localStorage.setItem(NOTIF_ACK_KEY, JSON.stringify([...set])); } catch (_) {}
+  }
+
+  function ongoingOutage() {
+    return (state.powerEvents || []).find((ev) => ev.ongoing) || null;
+  }
+
+  function collectNotifications(s) {
+    if (!s) return [];
+    const out = [];
+    if (s.stale) {
+      return [{
+        id: "ups:comm_lost", severity: "critical", icon: "x",
+        title: "Sin comunicación con la UPS",
+        summary: "No llegan lecturas recientes.",
+        ts: s.last_seen || null,
+        details: [{ label: "Última lectura", value: s.last_seen ? fmtFull(s.last_seen) : "—" }],
+      }];
+    }
+    const tokens = new Set((s.status || "").toUpperCase().split(/\s+/));
+    const charge = s.battery_charge != null ? `${Math.round(s.battery_charge)}%` : "—";
+    const load = s.watts_est != null ? `${Math.round(s.watts_est)} W`
+      : (s.load != null ? `${Math.round(s.load)}%` : "—");
+    const input = s.input_voltage != null ? `${Math.round(s.input_voltage)} V` : "—";
+
+    if (tokens.has("LB")) {
+      out.push({
+        id: "ups:low_battery", severity: "critical", icon: "battery",
+        title: "Batería baja", summary: "Autonomía limitada.",
+        details: [
+          { label: "Batería", value: charge },
+          { label: "Autonomía", value: s.runtime_human || "—" },
+          { label: "Umbral", value: s.charge_low != null ? `${s.charge_low}%` : "—" },
+        ],
+      });
+    }
+    if (tokens.has("OFF") || tokens.has("FSD")) {
+      out.push({
+        id: "ups:offline", severity: "critical", icon: "power",
+        title: "UPS sin salida", summary: "La UPS está apagada o en apagado forzado.",
+        details: [{ label: "Estado", value: s.status_label || s.status || "—" }],
+      });
+    }
+    if (tokens.has("OVER") || tokens.has("ALARM")) {
+      out.push({
+        id: "ups:alarm", severity: "critical", icon: "alert",
+        title: "Alarma de la UPS", summary: s.status_label || "Estado crítico reportado por la UPS.",
+        details: [{ label: "Estado", value: s.status_label || s.status || "—" }],
+      });
+    }
+    if ((tokens.has("OB") || tokens.has("DISCHRG")) && !tokens.has("LB")) {
+      const ev = ongoingOutage();
+      const details = [
+        { label: "Batería", value: charge },
+        { label: "Autonomía", value: s.runtime_human || "—" },
+        { label: "Carga", value: load },
+        { label: "Entrada", value: input },
+      ];
+      if (ev && ev.started_at) details.push({ label: "Inicio", value: fmtFull(ev.started_at) });
+      if (ev && ev.duration_s != null) details.push({ label: "Duración", value: fmtDuration(ev.duration_s) });
+      out.push({
+        id: "ups:on_battery", severity: "warning", icon: "battery",
+        title: "Corte de energía", summary: "La UPS está funcionando con batería.",
+        ts: (ev && ev.started_at) || s.last_seen || null,
+        details,
+      });
+    }
+    if (s.error && s.error.message) {
+      out.push({
+        id: "ups:read_error", severity: "warning", icon: "alert",
+        title: "Error al leer la UPS", summary: s.error.message,
+        ts: (s.error && s.error.ts) || s.last_seen || null,
+        details: s.error.ts ? [{ label: "Cuándo", value: fmtFull(s.error.ts) }] : [],
+      });
+    }
+    out.forEach((n) => { if (!n.ts) n.ts = s.last_seen || null; });
+    return out;
+  }
+
+  function dismissNotif(id) {
+    const set = notifAcked();
+    set.add(id);
+    notifSave(set);
+    renderNotifications();
+  }
+
+  function clearNotifs() {
+    const set = notifAcked();
+    collectNotifications(state.summary).forEach((n) => set.add(n.id));
+    notifSave(set);
+    renderNotifications();
+  }
+
+  function notifRowNode(n) {
+    const row = document.createElement("div");
+    row.className = `notif-item ${n.severity === "critical" ? "danger" : "warn"}`;
+
+    const ic = document.createElement("span");
+    ic.className = "notif-item-icon";
+    ic.innerHTML = ICONS[n.icon] || ICONS.alert;
+    row.appendChild(ic);
+
+    const body = document.createElement("div");
+    body.className = "notif-item-body";
+
+    const head = document.createElement("div");
+    head.className = "notif-item-head";
+    const title = document.createElement("strong");
+    title.textContent = n.title;
+    head.appendChild(title);
+    if (n.ts) {
+      const time = document.createElement("span");
+      time.className = "notif-item-time";
+      time.textContent = fmtFull(n.ts);
+      head.appendChild(time);
+    }
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "notif-item-close";
+    close.setAttribute("aria-label", "Descartar aviso");
+    close.title = "Descartar";
+    close.innerHTML = ICONS.x;
+    close.addEventListener("click", () => dismissNotif(n.id));
+    head.appendChild(close);
+    body.appendChild(head);
+
+    const sum = document.createElement("span");
+    sum.className = "notif-item-text";
+    sum.textContent = n.summary;
+    body.appendChild(sum);
+
+    if (n.details && n.details.length) {
+      const box = document.createElement("div");
+      box.className = "notif-item-detail";
+      box.hidden = true;
+      n.details.forEach((d) => {
+        const r = document.createElement("div");
+        r.className = "notif-item-drow";
+        const l = document.createElement("span");
+        l.className = "notif-item-dlabel";
+        l.textContent = d.label;
+        const v = document.createElement("span");
+        v.className = "notif-item-dvalue";
+        v.textContent = d.value;
+        r.append(l, v);
+        box.appendChild(r);
+      });
+      const more = document.createElement("button");
+      more.type = "button";
+      more.className = "notif-item-more";
+      more.textContent = "Ver detalle";
+      more.addEventListener("click", () => {
+        box.hidden = !box.hidden;
+        more.textContent = box.hidden ? "Ver detalle" : "Ocultar detalle";
+      });
+      body.append(more, box);
+    }
+
+    row.appendChild(body);
+    return row;
+  }
+
+  function renderNotifications() {
+    const list = $("notifList");
+    if (!list) return;
+    const badge = $("notifCount");
+    const clearBtn = $("notifClear");
+    const active = collectNotifications(state.summary);
+    const acked = notifAcked();
+    const ids = new Set(active.map((n) => n.id));
+    let pruned = false;
+    [...acked].forEach((id) => {
+      if (!ids.has(id)) { acked.delete(id); pruned = true; }
+    });
+    if (pruned) notifSave(acked);
+
+    const shown = active.filter((n) => !acked.has(n.id));
+    const danger = shown.some((n) => n.severity === "critical");
+
+    list.textContent = "";
+    if (!shown.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = active.length ? "Sin notificaciones pendientes." : "Sin notificaciones.";
+      list.appendChild(empty);
+    } else {
+      shown.forEach((n) => list.appendChild(notifRowNode(n)));
+    }
+    if (badge) {
+      badge.hidden = shown.length === 0;
+      badge.textContent = shown.length > 99 ? "99+" : String(shown.length);
+      badge.classList.toggle("danger", danger);
+    }
+    if (clearBtn) clearBtn.hidden = shown.length === 0;
+  }
+
+  function setNotifMenu(open) {
+    const menu = $("notifMenu");
+    const btn = $("notifBtn");
+    if (!menu || !btn) return;
+    menu.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
   }
 
   function renderConsumptionStats(series) {
@@ -994,6 +1213,18 @@
     if (monthPrev) monthPrev.addEventListener("click", () => shiftMonth(-1));
     const monthNext = $("monthNext");
     if (monthNext) monthNext.addEventListener("click", () => shiftMonth(1));
+    const notifBtn = $("notifBtn");
+    if (notifBtn) notifBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setNotifMenu($("notifMenu").hidden);
+    });
+    const notifClear = $("notifClear");
+    if (notifClear) notifClear.addEventListener("click", clearNotifs);
+    document.addEventListener("click", (e) => {
+      const wrap = $("notifWrap");
+      if (wrap && !wrap.contains(e.target)) setNotifMenu(false);
+    });
+    renderNotifications();
     showView("dashboard");
     await Promise.all([refreshSummary(), loadHistory(), loadEvents(), loadPowerEvents(), loadMonthlyConsumption()]);
     connect();
@@ -1003,6 +1234,6 @@
   }
 
   $("themeBtn").addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setMenu(false); setNotifMenu(false); } });
   document.addEventListener("DOMContentLoaded", init);
 })();

@@ -10,9 +10,9 @@
 	<script src="/theme.js?v=2"></script>
 	<link rel="stylesheet" href="/vendor/bootstrap/bootstrap.min.css">
 	<link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
-	<link rel="stylesheet" href="/style.css?v=9">
+	<link rel="stylesheet" href="/style.css?v=10">
 	<script src="/vendor/bootstrap/bootstrap.bundle.min.js" defer></script>
-	<script type="module" src="/js/shell.js?v=9"></script>
+	<script type="module" src="/js/shell.js?v=11"></script>
 </head>
 
 <body>
@@ -63,9 +63,15 @@
 							aria-labelledby="alerts-toggle">
 							<div class="alerts-menu-head">
 								<span class="alerts-menu-title"><i class="fa-solid fa-bell"></i>Notificaciones</span>
-								<span class="badge rounded-pill pill-unknown" id="alerts-menu-count">0</span>
+								<span class="alerts-menu-actions">
+									<button type="button" class="alerts-clear" id="alerts-clear" hidden>Limpiar todo</button>
+									<span class="badge rounded-pill pill-unknown" id="alerts-menu-count">0</span>
+								</span>
 							</div>
 							<div class="alerts-menu-body" id="alerts-list"></div>
+							<div class="alerts-menu-foot">
+								<button type="button" class="link-btn" id="open-push">Notificaciones push…</button>
+							</div>
 						</div>
 					</div>
 					<button type="button" class="btn btn-outline-secondary icon-toggle" id="theme-toggle"
@@ -703,6 +709,23 @@
 			</div>
 		</div>
 	</div>
+
+	<div class="modal fade" id="pushModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Notificaciones push</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+				</div>
+				<div class="modal-body">
+					<p class="small text-body-secondary mb-2">Activa este dispositivo y elige qué avisos de copias recibir.</p>
+					<div id="push-settings" data-area="copias"></div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script src="/js/push-client.js?v=11" defer></script>
 
 </body>
 

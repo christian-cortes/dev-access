@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>CortexDev · Notificaciones</title>
+	<link rel="icon" type="image/png" sizes="32x32" href="/favicons/cortexdev-32.png">
+	<link rel="apple-touch-icon" sizes="180x180" href="/favicons/cortexdev-180.png">
+	<script src="/theme.js?v=2"></script>
+	<link rel="stylesheet" href="/vendor/bootstrap/bootstrap.min.css">
+	<link rel="stylesheet" href="/style.css?v=8">
+	<script src="/vendor/bootstrap/bootstrap.bundle.min.js" defer></script>
+	<script src="/app.js?v=8" defer></script>
+	<script src="/push-client.js?v=3" defer></script>
+</head>
+
+<body>
+	<div class="wrap">
+
+		<header class="top d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+			<div class="brand d-flex align-items-center gap-3 min-w-0">
+				<div class="logo"><img src="/favicons/cortexdev-180.png" alt="CortexDev" width="42" height="42"></div>
+				<div>
+					<h1 class="h4 mb-0">Notificaciones</h1>
+					<p class="mb-0 small text-body-secondary">Avisos push para <code>index.cortexdev.win</code></p>
+				</div>
+			</div>
+			<nav class="crumbs nav nav-pills flex-wrap gap-2 small">
+				<a class="nav-link" href="/">Inicio</a>
+				<a class="nav-link" href="/infraestructura.html">Infraestructura</a>
+				<a class="nav-link active" href="/notificaciones.html">Notificaciones</a>
+			</nav>
+		</header>
+
+		<div class="card">
+			<div class="card-body">
+				<h2 class="h6 card-title">Este dispositivo</h2>
+				<p class="card-text small text-body-secondary">
+					Activa las notificaciones para recibir aquí los avisos de estado del portal
+					(servicios caídos y recuperados). El contenido es el mismo que en la campana.
+				</p>
+				<div id="push-settings" data-area="index"></div>
+			</div>
+		</div>
+
+		<footer class="bottom d-flex flex-wrap justify-content-between gap-2 border-top pt-3 mt-5 small text-body-secondary">
+			<span>cortexdev.win</span>
+			<span>Volver al <a href="/">índice</a></span>
+		</footer>
+
+	</div>
+</body>
+
+</html>

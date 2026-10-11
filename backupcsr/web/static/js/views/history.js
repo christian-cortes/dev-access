@@ -1,5 +1,6 @@
 /* Vista Historial: corridas filtrables, detalle y exportación. */
 import { $, el, pill, fmtDate, fmtDuration, fmtGb, toast } from '../ui.js';
+import { goToLogin } from '../api.js';
 
 let ctxRef = null;
 
@@ -66,7 +67,7 @@ async function exportRuns(format) {
   try {
     const res = await fetch('/api/runs/export?' + params.toString(), { credentials: 'same-origin' });
     if (res.status === 401) {
-      location.href = '/login.html';
+      goToLogin();
       return;
     }
     if (!res.ok) {

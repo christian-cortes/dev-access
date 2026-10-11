@@ -305,6 +305,9 @@
     renderCounts();
     renderFreshness();
     dispatchRendered();
+    document.dispatchEvent(new CustomEvent('portal:statuses', {
+      detail: { statuses: statuses, services: portal ? portal.services : [] },
+    }));
   }
 
   function loadStatuses(refresh) {
