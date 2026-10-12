@@ -1105,6 +1105,17 @@
     if (scrim) scrim.hidden = !open;
   }
 
+  function setSettingsModal(open) {
+    const modal = $("settingsModal");
+    if (!modal) return;
+    modal.hidden = !open;
+    document.body.style.overflow = open ? "hidden" : "";
+    if (open) {
+      const card = modal.querySelector(".modal-card");
+      if (card) card.focus();
+    }
+  }
+
   function showView(view) {
     setMenu(false);
     state.view = view;
@@ -1209,6 +1220,14 @@
     if (menuBtn) menuBtn.addEventListener("click", () => setMenu(!document.body.classList.contains("menu-open")));
     const menuScrim = $("menuScrim");
     if (menuScrim) menuScrim.addEventListener("click", () => setMenu(false));
+    const settingsBtn = $("settingsBtn");
+    if (settingsBtn) settingsBtn.addEventListener("click", () => setSettingsModal(true));
+    const settingsClose = $("settingsClose");
+    if (settingsClose) settingsClose.addEventListener("click", () => setSettingsModal(false));
+    const settingsModal = $("settingsModal");
+    if (settingsModal) settingsModal.addEventListener("click", (e) => {
+      if (e.target.hasAttribute("data-close")) setSettingsModal(false);
+    });
     const monthPrev = $("monthPrev");
     if (monthPrev) monthPrev.addEventListener("click", () => shiftMonth(-1));
     const monthNext = $("monthNext");
@@ -1234,6 +1253,6 @@
   }
 
   $("themeBtn").addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setMenu(false); setNotifMenu(false); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setMenu(false); setNotifMenu(false); setSettingsModal(false); } });
   document.addEventListener("DOMContentLoaded", init);
 })();

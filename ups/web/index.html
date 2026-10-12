@@ -8,7 +8,7 @@
 <title>UPS · Centro de energía de infraestructura</title>
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/favicon.png">
-<link rel="stylesheet" href="/styles.css?v=2">
+<link rel="stylesheet" href="/styles.css?v=3">
 </head>
 <body data-status="ok">
 <div class="app">
@@ -27,7 +27,6 @@
       <button type="button" class="nav-link" data-view="history">Historial</button>
       <button type="button" class="nav-link" data-view="events">Eventos</button>
       <button type="button" class="nav-link" data-view="diagnostics">Diagnóstico</button>
-      <button type="button" class="nav-link" data-view="settings">Ajustes</button>
     </nav>
 
     <div class="actions">
@@ -36,6 +35,9 @@
         <span class="status-ico" id="statusIcon" aria-hidden="true"></span>
         <span id="statusText">—</span>
       </span>
+      <button id="settingsBtn" class="icon-btn" type="button" aria-label="Ajustes de notificaciones" title="Ajustes de notificaciones" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
       <div class="notif" id="notifWrap">
         <button id="notifBtn" class="icon-btn notif-btn" type="button" aria-label="Notificaciones" aria-haspopup="true" aria-expanded="false">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
@@ -196,11 +198,6 @@
       <div class="card-head compact"><h2>Diagnóstico</h2></div>
       <div id="diagnostics" class="diag-grid"></div>
     </section>
-
-    <section class="card" data-view="settings">
-      <div class="card-head compact"><h2>Notificaciones</h2></div>
-      <div id="push-settings" data-area="ups"></div>
-    </section>
   </main>
 
   <footer class="foot">
@@ -208,9 +205,23 @@
     <a href="/cgi-bin/nut/upsstats.cgi" target="_blank" rel="noopener">NUT clásico</a>
   </footer>
 </div>
+<div id="settingsModal" class="modal" hidden>
+  <div class="modal-scrim" data-close></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" tabindex="-1">
+    <div class="modal-head">
+      <h2 id="settingsModalTitle">Notificaciones</h2>
+      <button id="settingsClose" class="modal-close" type="button" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6 18 18M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div id="push-settings" data-area="ups"></div>
+    </div>
+  </div>
+</div>
 <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
 <script src="/vendor/chart.umd.min.js"></script>
-<script src="/app.js?v=2"></script>
+<script src="/app.js?v=3"></script>
 <script src="/push-client.js?v=4" defer></script>
 </body>
 </html>
