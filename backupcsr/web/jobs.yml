@@ -16,10 +16,11 @@
 # arranquen a la vez: seis mirrors simultáneos contra el NAS agotan la RAM del
 # anfitrión (4 vCPU, ~3,3 GB, swap lleno) y bloquean el resto de servicios. Los
 # *-web corren en horas fuera de la ráfaga horaria (3,10,16,20) para reducir la
-# contención de la cola global; si no consiguen turno, la ronda queda OMITIDA
-# (aviso, no fallo) y se reintenta en el siguiente ciclo. Con
-# BACKUP_MANAGE_CRON=1 hay que ajustar además el horario en la tabla `jobs` (panel
-# de Programación); la cola global de lib/common.sh protege en cualquier caso.
+# contención de la cola global. Con el planificador encendido (BACKUP_SCHEDULER=1) las
+# rondas que no caben esperan en la cola (sin OMITIDO); solo en el respaldo serial, si no
+# consiguen turno en GATE_WAIT, la ronda queda OMITIDA (aviso, no fallo) y se reintenta en
+# el siguiente ciclo. Con BACKUP_MANAGE_CRON=1 hay que ajustar además el horario en la tabla
+# `jobs` (panel de Programación); el planificador (o el gate serial) protege en cualquier caso.
 settings:
   timezone: America/Bogota
   grace_minutes: 90

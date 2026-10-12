@@ -33,7 +33,7 @@ DRY_RUN="${DRY_RUN:-0}"
 #                   size+time = comparación clásica tamaño+fecha.
 #   MIRROR_RATE_LIMIT  bytes/s totales por corrida (0 = sin límite).
 MIRROR_GATE="${MIRROR_GATE-/run/lock/backupcsr-gate.lock}"
-GATE_WAIT="${GATE_WAIT:-900}"
+GATE_WAIT="${GATE_WAIT:-1800}"
 JOB_NICE="${JOB_NICE:-15}"
 JOB_IONICE_CLASS="${JOB_IONICE_CLASS:-2}"
 JOB_IONICE_LEVEL="${JOB_IONICE_LEVEL:-7}"
@@ -120,6 +120,9 @@ job_init() {
 	set -E
 	trap 'log "FALLO: exit=$? linea=$LINENO comando=$BASH_COMMAND"' ERR
 	trap '_backupcsr_on_exit' EXIT
+	# El planificador mata el grupo de procesos si la ronda supera BACKUP_JOB_TIMEOUT;
+	# este trap deja una línea limpia en el log en vez de un cierre sin "PROCESO:".
+	trap '_backupcsr_on_term' TERM
 	# Las copias no deben competir con nginx/MySQL/panel por CPU ni por I/O.
 	renice -n "$JOB_NICE" -p $$ >/dev/null 2>&1 || true
 	ionice -c "$JOB_IONICE_CLASS" -n "$JOB_IONICE_LEVEL" -p $$ >/dev/null 2>&1 || true
@@ -133,6 +136,13 @@ _backupcsr_on_exit() {
 	local rc=$?
 	log "PROCESO: exit=$rc"
 	exit "$rc"
+}
+
+# Cierre por timeout: el planificador envía TERM al grupo si la ronda excede
+# BACKUP_JOB_TIMEOUT. Se registra el motivo y se sale para que el daemon reencole.
+_backupcsr_on_term() {
+	log "FALLO: tiempo máximo de ejecución excedido (timeout del planificador)"
+	exit 1
 }
 
 # Carga /etc/backupcsr/credentials.env (chmod 600, root:root).

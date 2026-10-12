@@ -52,8 +52,8 @@ def submit(slug: str, action: str = "run", trigger: str = "manual",
     })
 
 
-def status() -> dict:
-    return request({"op": "status"})
+def status(timeout: float = 3.0) -> dict:
+    return request({"op": "status"}, timeout=timeout)
 
 
 def cancel(slug: str) -> dict:

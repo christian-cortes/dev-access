@@ -80,6 +80,16 @@ check("effective_run salta OMITIDO", logs.effective_run(runs[:2]) is partial)
 check("latest_omit detecta la última", logs.latest_omit(runs[:2]) is omit)
 check("latest_omit vacío si la última no es OMITIDO", logs.latest_omit([partial]) is None)
 
+# consecutive_omits: rondas OMITIDO seguidas al final (umbral del banner).
+check("consecutive_omits cuenta la última", logs.consecutive_omits(runs[:2]) == 1,
+      logs.consecutive_omits(runs[:2]))
+check("consecutive_omits cero sin OMITIDO al final",
+      logs.consecutive_omits(runs[:1]) == 0)
+check("consecutive_omits acumula seguidas",
+      logs.consecutive_omits([omit, omit, omit]) == 3)
+check("consecutive_omits se corta al ver una real",
+      logs.consecutive_omits([partial, omit, omit]) == 2)
+
 # classify_error por marcador y heurística de red.
 check("classify [transitorio]", logs.classify_error("ERROR: x [transitorio]") == "transitorio")
 check("classify timeout", logs.classify_error("Connection timed out") == "transitorio")

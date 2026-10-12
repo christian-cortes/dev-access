@@ -6,6 +6,8 @@
 #   sudo backupcsr/web/install.sh                # venv, deps, systemd y admin (si hay BD)
 #   sudo backupcsr/web/install.sh --no-apt       # no toca apt (paquetes ya instalados)
 #   sudo backupcsr/web/install.sh --skip-db      # no aplica schema ni crea admin
+#   sudo backupcsr/web/install.sh --enable-scheduler   # solo activa el planificador
+#   sudo backupcsr/web/install.sh --disable-scheduler  # solo lo desactiva (vuelve al serial)
 #
 # Prerrequisitos (una vez, ver backupcsr/web/README.md):
 #   1) MySQL de ubuntu-docker (.87) publicado en la LAN y con la BD/usuario creados
@@ -18,14 +20,18 @@ OPT_DIR="${BACKUP_OPT:-/opt/backupcsr}"
 WEB_DIR="$OPT_DIR/web"
 ENV_FILE="${BACKUP_ETC:-/etc/backupcsr}/web.env"
 UNIT=/etc/systemd/system/backupcsr-web.service
+SCHED_UNIT=/etc/systemd/system/backupcsr-scheduler.service
 PORT=8089
 
 DO_APT=1
 DO_DB=1
+SCHED_MODE=""
 for arg in "$@"; do
 	case "$arg" in
 		--no-apt) DO_APT=0 ;;
 		--skip-db) DO_DB=0 ;;
+		--enable-scheduler) SCHED_MODE="enable" ;;
+		--disable-scheduler) SCHED_MODE="disable" ;;
 		*) echo "Opción desconocida: $arg" >&2; exit 2 ;;
 	esac
 done
@@ -37,6 +43,53 @@ fi
 if [ "${ALLOW_OTHER_HOST:-0}" != "1" ] && ! hostname -I 2>/dev/null | grep -q '192\.168\.0\.49'; then
 	echo "ERROR: install.sh debe correr en ubuntu-services (192.168.0.49); usa ALLOW_OTHER_HOST=1 para forzar" >&2
 	exit 1
+fi
+
+# Ajusta una variable del web.env sin reescribir el resto (activa o comenta la clave).
+set_env_flag() {
+	local key="$1" value="$2"
+	if grep -q "^${key}=" "$ENV_FILE"; then
+		sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+	elif grep -q "^# *${key}=" "$ENV_FILE"; then
+		sed -i "s|^# *${key}=.*|${key}=${value}|" "$ENV_FILE"
+	else
+		printf '\n%s=%s\n' "$key" "$value" >>"$ENV_FILE"
+	fi
+}
+
+# Atajo: encender/apagar el planificador sin reinstalar venv/deps/BD.
+if [ -n "$SCHED_MODE" ]; then
+	if [ ! -f "$ENV_FILE" ]; then
+		echo "ERROR: no existe $ENV_FILE; ejecuta install.sh completo primero" >&2
+		exit 1
+	fi
+	# Las unidades las genera el install completo (sección 5/6); sin ellas, cambiar el
+	# web.env dejaría la bandera y el servicio en estados distintos.
+	if [ ! -f "$SCHED_UNIT" ] || [ ! -f "$UNIT" ]; then
+		echo "ERROR: faltan las unidades systemd ($SCHED_UNIT / $UNIT);" >&2
+		echo "       ejecuta install.sh completo una vez antes de usar --$SCHED_MODE-scheduler" >&2
+		exit 1
+	fi
+	if [ "$SCHED_MODE" = "enable" ]; then
+		prev_sched="$(sed -n 's/^BACKUP_SCHEDULER=//p' "$ENV_FILE" | tail -n1 | tr -d ' "')"
+		set_env_flag BACKUP_SCHEDULER 1
+		systemctl daemon-reload
+		if ! systemctl enable --now backupcsr-scheduler.service; then
+			set_env_flag BACKUP_SCHEDULER "${prev_sched:-0}"
+			echo "ERROR: no se pudo habilitar backupcsr-scheduler.service;" >&2
+			echo "       se revierte BACKUP_SCHEDULER=${prev_sched:-0}" >&2
+			exit 1
+		fi
+		systemctl restart backupcsr-web.service || true
+		echo "planificador habilitado (BACKUP_SCHEDULER=1); el cron encola en cola"
+	else
+		set_env_flag BACKUP_SCHEDULER 0
+		systemctl daemon-reload
+		systemctl disable --now backupcsr-scheduler.service || true
+		systemctl restart backupcsr-web.service || true
+		echo "planificador deshabilitado (BACKUP_SCHEDULER=0); el cron usa el respaldo serial"
+	fi
+	exit 0
 fi
 
 echo "== 1/6 Paquetes =="
@@ -88,7 +141,6 @@ chmod 600 "$ENV_FILE"
 echo "== 5/6 Servicio systemd =="
 sed -e "s|__WEB_DIR__|$WEB_DIR|g" "$SRC_DIR/systemd/backupcsr-web.service.template" >"$UNIT"
 chmod 0644 "$UNIT"
-SCHED_UNIT=/etc/systemd/system/backupcsr-scheduler.service
 sed -e "s|__WEB_DIR__|$WEB_DIR|g" "$SRC_DIR/systemd/backupcsr-scheduler.service.template" >"$SCHED_UNIT"
 chmod 0644 "$SCHED_UNIT"
 systemctl daemon-reload

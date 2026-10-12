@@ -99,11 +99,26 @@ portal encolan por un socket Unix; el daemon lanza los scripts con `MIRROR_GATE=
   una caída del portal no detiene las copias. El portal hace lo mismo (`app/runner.py`). Con
   `BACKUP_SCHEDULER=0` el daemon no se arranca (`install.sh` lo condiciona) y todo vuelve al modo
   serial anterior.
+- **Activar**: `BACKUP_SCHEDULER=1` en `/etc/backupcsr/web.env`. Para hacerlo sin reinstalar:
+  `sudo backupcsr/web/install.sh --enable-scheduler` (y `--disable-scheduler` para volver al
+  serial). **Importante**: con el daemon activo el cron encola y las rondas que no caben
+  **esperan** (ya no quedan `OMITIDO`); con `BACKUP_SCHEDULER=0` el daemon no se arranca y el cron
+  cae al respaldo serial (`flock`/`MIRROR_GATE`), donde una ronda que no consigue turno en
+  `GATE_WAIT` queda `OMITIDO`.
+- **`GATE_WAIT`**: 1800 s para el respaldo serial y las ejecuciones manuales. Se lee antes de
+  `load_credentials`, así que no se puede fijar desde `credentials.env`.
+- **Timeout de ronda** (`BACKUP_JOB_TIMEOUT`, por defecto 5400 s): si un job lanzado por el
+  daemon supera el tope, se mata su grupo de procesos (lftp incluido) y la ronda se reencola
+  como `transitorio`. `0` desactiva el tope.
+- **Daemon caído**: si `BACKUP_SCHEDULER=1` y el socket no responde, el portal muestra una alerta
+  (deja de ser silencioso) y el cron usa el respaldo serial.
+- **Aviso de cola**: el banner solo avisa de `OMITIDO` tras **3 rondas omitidas seguidas**
+  (contención persistente); una omisión aislada no alarma.
 - **API**: `GET /api/jobs/scheduler` expone cupos, cola y corridas.
 
 Validación rápida: `systemctl status backupcsr-scheduler`, `backupcsr-scheduler status` y
 `journalctl -u backupcsr-scheduler -f`. Para probar sin copiar datos:
-`DRY_RUN=1` en una ronda encolada (`--action dry`).
+`backupcsr-scheduler submit <slug> --action dry`.
 
 ### Zona horaria del anfitrión
 
@@ -191,7 +206,8 @@ origen '...' resuelve solo a loopback` si el DNS del origen apunta a `127.0.0.1`
 
 Clasificación y severidad (portal): `fatal` (auth/NAS/destino) → **Crítico**; `transitorio`
 → **Aviso** y solo tras 2 corridas no-OK consecutivas (debounce); `contencion` (`OMITIDO`)
-→ **Aviso** "ronda omitida"; `parcial` → **Aviso** con el número de archivos. La
+→ **Aviso** solo tras 3 rondas omitidas seguidas; `parcial` → **Aviso** con el número de
+archivos. La
 `criticality` del job puede subir la severidad, nunca bajarla. Los incidentes se guardan en
 la tabla `incidents` (abierto/actualizado/resuelto; `GET /api/incidents`) y el detalle en
 `runs.error_class`/`runs.error_lines`.
@@ -270,6 +286,7 @@ Lo que ya hace el repo:
 | Cola global (`MIRROR_GATE`) | `lib/common.sh` | Respaldo serial: un solo job de copia a la vez si se ejecuta un script directo; con el planificador los jobs se lanzan con `MIRROR_GATE=""` y el daemon aplica los cupos |
 | Planificador (cupos global y por host) | `app/scheduler.py`, `jobs.yml` | 2 copias a la vez y 1 por `origin_host`; las rondas que no caben esperan, sin `OMITIDO` |
 | Reintentos de ronda (`BACKUP_RETRY_*`) | `app/scheduler.py` | Un fallo transitorio se reencola con backoff y coalescing en vez de marcar `FALLO` al primer intento |
+| Timeout de ronda (`BACKUP_JOB_TIMEOUT`, 5400 s) | `app/scheduler.py` | Una ronda colgada libera su cupo y se reencola como transitorio (mata el grupo de procesos, lftp incluido) en vez de bloquear la cola |
 | Reintentos de red (`MIRROR_ATTEMPTS`, `RETRY_BACKOFF`) | `lib/common.sh` | Reintenta la conexión ante errores transitorios (timeout, `max-retries`) antes de fallar |
 | Tolerancia por archivo (`PARTIAL_MAX`) | `lib/common.sh` | Unos pocos archivos con error real no tumban el job: cierra `PARCIAL` y los lista |
 | Tolerancia a no representables (`UNREPR_MAX`) | `lib/common.sh` | Nombres no UTF-8, barras invertidas y enlaces se cuentan aparte y no disparan `FALLO` |
@@ -325,8 +342,9 @@ sudo /opt/backupcsr/jobs/enter-bd.sh && grep -c "Transferring file" /var/log/bac
 
 > El cron invoca `/opt/backupcsr/bin/backupcsr-scheduler` con respaldo `flock`+script a nivel de
 > shell, así que si falta el portal igual corre la copia. Arranca el planificador con
-> `BACKUP_SCHEDULER=1` en `/etc/backupcsr/web.env` (con `0`, `install.sh` no lo arranca y se usa
-> el modo serial).
+> `sudo backupcsr/web/install.sh --enable-scheduler` (o `BACKUP_SCHEDULER=1` en
+> `/etc/backupcsr/web.env`; con `0`/sin la bandera, `install.sh` no lo arranca y se usa el modo
+> serial, que produce `OMITIDO`).
 
 Si el portal tiene `BACKUP_MANAGE_CRON=1`, el horario efectivo sale de la tabla `jobs`: cambia
 los minutos en el panel de Programación (o en la BD) para que el escalonado no se pierda al

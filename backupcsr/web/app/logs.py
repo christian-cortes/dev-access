@@ -265,6 +265,21 @@ def latest_omit(runs: list[dict]) -> dict | None:
     return None
 
 
+def consecutive_omits(runs: list[dict]) -> int:
+    """Cuántas rondas OMITIDO seguidas hay al final del historial.
+
+    El banner silencia los avisos de contención hasta un umbral para no alarmar por
+    una omisión aislada (p. ej. un pico de cola), pero sigue mostrando la contención
+    persistente.
+    """
+    count = 0
+    for run in reversed(runs):
+        if run.get("status") != "OMITIDO":
+            break
+        count += 1
+    return count
+
+
 def latest_run(slug: str) -> dict | None:
     runs = parse_slug(slug)
     return runs[-1] if runs else None

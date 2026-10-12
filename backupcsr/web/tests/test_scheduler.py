@@ -262,6 +262,32 @@ check("integración: el daemon lanza con MIRROR_GATE desactivado",
       gate_file.exists() and gate_file.read_text() == "", gate_file.read_text() if gate_file.exists() else "(sin archivo)")
 check("integración: no queda cupo ocupado", s_int.status()["running"] == [])
 
+# ------------------------------------------- timeout de ronda: libera cupo y reencola
+prev_timeout = config.SCHEDULER_JOB_TIMEOUT
+config.SCHEDULER_JOB_TIMEOUT = 1
+try:
+    slow = fake_dir / "slow.sh"
+    slow.write_text(
+        "#!/usr/bin/env bash\nset -euo pipefail\nsleep 30\n", encoding="utf-8",
+    )
+    s_to = scheduler.Scheduler(state_path=TMP / "timeout.json", max_jobs=1,
+                               retry_max=3, backoff=[100], jitter=0)
+    s_to._job = lambda slug: {"slug": slug, "lockfile": str(TMP / "slow.lock"),
+                              "origin_host": "h"}
+    s_to.submit("slow", action="run", trigger="cron", host="h")
+    s_to.tick()
+    end = time.time() + 15
+    while s_to.status()["running"] and time.time() < end:
+        time.sleep(0.05)
+    st = s_to.status()
+    check("timeout: libera el cupo y reencola",
+          st["running"] == [] and any(i["slug"] == "slow" for i in st["pending"]), st)
+    with s_to._guard:
+        item = next(i for i in s_to._queue if i["slug"] == "slow")
+    check("timeout: gasta un reintento (transitorio)", item["attempts"] == 1, item)
+finally:
+    config.SCHEDULER_JOB_TIMEOUT = prev_timeout
+
 shutil.rmtree(TMP, ignore_errors=True)
 
 print()

@@ -88,6 +88,10 @@ SCHEDULER_RETRY_MAX = _int("BACKUP_RETRY_MAX", 3)
 SCHEDULER_RETRY_BACKOFF = os.environ.get("BACKUP_RETRY_BACKOFF", "300,900,2700")
 SCHEDULER_RETRY_JITTER = os.environ.get("BACKUP_RETRY_JITTER", "0.2")
 SCHEDULER_POLL = _int("BACKUP_SCHEDULER_POLL", 2)
+# Tope de duración de una ronda lanzada por el planificador (segundos). Al vencer se
+# mata el grupo de procesos (lftp incluido) y la ronda se reencola como transitoria.
+# 0 = sin límite.
+SCHEDULER_JOB_TIMEOUT = _int("BACKUP_JOB_TIMEOUT", 5400)
 
 # --- Tamaños (GB por tarea) ---
 SIZE_TTL = _int("BACKUP_SIZE_TTL", 1800)

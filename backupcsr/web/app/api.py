@@ -402,6 +402,7 @@ def collect_jobs() -> list[dict]:
                 "running": running,
                 "last_run": logs.run_to_dict(latest) if latest else None,
                 "omitted": logs.run_to_dict(omit) if omit else None,
+                "omitted_consecutive": logs.consecutive_omits(runs),
                 "next_run": _iso(next_dt),
                 "cron_effective": sched,
                 "schedule_drift": bool(
@@ -451,6 +452,10 @@ CLASS_LABELS = {
     "contencion": "Cola",
     "parcial": "Parcial",
 }
+
+# Una omisión aislada de cola no amerita aviso en el banner; a partir de este número
+# de rondas OMITIDO seguidas sí (contención persistente).
+OMIT_ALERT_MIN = 3
 
 
 def _when(value) -> str | None:
@@ -563,10 +568,12 @@ def build_alerts(jobs: list[dict]) -> list[dict]:
                 slug=slug, cls="parcial", consecutive=consecutive, ts=when,
                 details=_job_details(job, inc, "parcial"),
             ))
-        elif job.get("omitted"):
+        elif job.get("omitted_consecutive", 0) >= OMIT_ALERT_MIN:
+            omits = int(job.get("omitted_consecutive") or 0)
             alerts.append(_notif(
                 "job", "warning",
-                f"{job['name']}: ronda omitida (cola ocupada); se reintenta en el próximo ciclo",
+                f"{job['name']}: {omits} rondas omitidas seguidas por cola ocupada; "
+                "se reintentan en el próximo ciclo",
                 slug=slug, cls="contencion", consecutive=consecutive, ts=when,
                 details=_job_details(job, inc, "contencion"),
             ))
@@ -621,6 +628,22 @@ def build_alerts(jobs: list[dict]) -> list[dict]:
             details=[{"label": "Tareas", "value": names}],
             extra={"slugs": [job["slug"] for job in drifted]},
         ))
+    if config.SCHEDULER:
+        # Con el planificador configurado, si el socket no responde el cron cae al
+        # respaldo serial y pueden aparecer OMITIDO: se avisa para no confundirlo con
+        # fallos de las copias.
+        try:
+            from . import scheduler_client
+            sched = scheduler_client.status(timeout=1.0)
+        except Exception:  # noqa: BLE001
+            sched = {"available": False}
+        if not sched.get("available"):
+            alerts.append(_notif(
+                "scheduler", "warning",
+                "El planificador de copias no está disponible; el cron usa el respaldo "
+                "serial (puede haber rondas OMITIDAS)",
+                details=[{"label": "Socket", "value": str(config.SCHEDULER_SOCKET)}],
+            ))
     return alerts
 
 

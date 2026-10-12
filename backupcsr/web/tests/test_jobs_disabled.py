@@ -143,6 +143,14 @@ check("alertas: solo de tareas habilitadas",
       all(alert["slug"] not in DISABLED for alert in job_alerts(api.collect_jobs())),
       sorted({alert["slug"] for alert in job_alerts(api.collect_jobs())}))
 
+# El aviso de cola ocupada (OMITIDO) se silencia hasta 3 rondas seguidas.
+base = {"slug": "gastro-bd", "name": "Gastro BD", "enabled": 1, "status": "OK",
+        "status_detail": "ok", "omitted_consecutive": 1}
+check("alertas: una omisión aislada no alarma", job_alerts([base]) == [], job_alerts([base]))
+contencion = [a for a in job_alerts([{**base, "omitted_consecutive": 3}])
+              if a.get("class") == "contencion"]
+check("alertas: 3 omisiones seguidas sí alarman", len(contencion) == 1, contencion)
+
 # -------------------------------------------------------------- medición
 files.nas_ready = lambda: True
 anchor = Path(os.environ["BACKUP_NAS"]) / "ticware-bd" / "sub"

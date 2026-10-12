@@ -336,22 +336,57 @@ class Scheduler:
         env["MIRROR_GATE"] = ""  # el daemon ya controla la concurrencia
         env["DRY_RUN"] = "1" if dry else "0"
         env["BACKUP_TRIGGERED_BY"] = "manual" if item["trigger"] == "manual" else "cron"
+        timeout = config.SCHEDULER_JOB_TIMEOUT or None
+        timed_out = False
         try:
-            subprocess.run(
+            # start_new_session: el job (y lftp) forman su propio grupo para poder
+            # matarlos juntos si se excede el timeout. El hijo hereda el fd del flock:
+            # si el daemon muere, el lock sigue tomado hasta que el job termine y no
+            # se solapa un segundo mirror.
+            process = subprocess.Popen(
                 ["/bin/bash", str(script)], env=env,
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL, check=False,
-                # El hijo hereda el fd del flock: si el daemon muere, el lock sigue
-                # tomado hasta que el job termine y no se solapa un segundo mirror.
+                stderr=subprocess.DEVNULL,
                 pass_fds=(handle.fileno(),),
+                start_new_session=True,
             )
+            try:
+                process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                self._kill_group(process)
         finally:
             try:
                 fcntl.flock(handle, fcntl.LOCK_UN)
             except OSError:
                 pass
             handle.close()
+        if timed_out:
+            log.error("job %s: excedió el tiempo máximo (%ss); se reencola como transitorio",
+                      slug, config.SCHEDULER_JOB_TIMEOUT)
+            return "fallo", "transitorio"
         return self._classify(slug)
+
+    @staticmethod
+    def _kill_group(process: subprocess.Popen) -> None:
+        """Mata el grupo del job (SIGTERM y, si no cede, SIGKILL)."""
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        except (OSError, ProcessLookupError):
+            return
+        try:
+            process.wait(timeout=10)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            return
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            log.warning("job pid %s no terminó tras SIGKILL", process.pid)
 
     def _classify(self, slug: str) -> tuple[str, str]:
         run = logs.latest_run(slug)

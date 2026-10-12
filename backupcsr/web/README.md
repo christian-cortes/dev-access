@@ -106,8 +106,9 @@ y los logs, y para lanzar los jobs con el mismo `flock` que usa cron. nginx (con
    usuario `backupcsr_web` siempre lleva password fuerte; nunca vacío.
 3. **`/etc/backupcsr/web.env`** (0600 root) a partir de `conf/web.env.example`, con `BACKUP_DB_*`,
    `BACKUP_SECRET_KEY`, `BACKUP_MANAGE_CRON` y, si se usa el planificador, `BACKUP_SCHEDULER=1`
-   (más `BACKUP_MAX_JOBS`, `BACKUP_MAX_PER_HOST` y `BACKUP_RETRY_*`); con `0`, `install.sh` no
-   arranca `backupcsr-scheduler` y el cron usa el respaldo serial.
+   (más `BACKUP_MAX_JOBS`, `BACKUP_MAX_PER_HOST`, `BACKUP_RETRY_*` y `BACKUP_JOB_TIMEOUT`); con
+   `0`, `install.sh` no arranca `backupcsr-scheduler` y el cron usa el respaldo serial (que
+   produce rondas `OMITIDO`).
 
 ## Instalación
 
@@ -115,6 +116,13 @@ y los logs, y para lanzar los jobs con el mismo `flock` que usa cron. nginx (con
 # En ubuntu-services, desde el checkout del repo:
 sudo backupcsr/web/install.sh          # venv + deps + systemd + schema + admin
 sudo backupcsr/web/install.sh --no-apt # si python3-venv ya está
+```
+
+Encender o apagar el planificador sin reinstalar todo:
+
+```bash
+sudo backupcsr/web/install.sh --enable-scheduler    # BACKUP_SCHEDULER=1 + enable --now
+sudo backupcsr/web/install.sh --disable-scheduler   # vuelve al modo serial
 ```
 
 Luego, para publicar la UI:
@@ -197,9 +205,12 @@ incidente abierto por job** (se abre en no-OK, se actualiza con `count`/`consecu
 resuelve al volver `OK`); `contencion` no abre incidente.
 
 `build_alerts` (campana) aplica severidad y debounce: `fatal` → Crítico; `transitorio` →
-Aviso solo con 2 corridas no-OK consecutivas; `contencion`/`parcial` → Aviso. La
-`criticality` del job sube severidad, no la baja. Estados `OMITIDO`/`PARCIAL` no alteran la
-frescura (se evalúa con la última corrida real).
+Aviso solo con 2 corridas no-OK consecutivas; `contencion` → Aviso solo tras **3 rondas
+`OMITIDO` seguidas** (una omisión aislada no alarma); `parcial` → Aviso. Si
+`BACKUP_SCHEDULER=1` y el socket del planificador no responde, se añade un aviso
+`kind="scheduler"` (el cron está usando el respaldo serial). La `criticality` del job sube
+severidad, no la baja. Estados `OMITIDO`/`PARCIAL` no alteran la frescura (se evalúa con la
+última corrida real).
 
 Aviso externo opcional (`app/notify.py`, `BACKUP_ALERT_*` en `web.env`): `fatal` inmediato,
 resumen diario (`venv/bin/python -m app.cli notify-digest`) y recuperación; sin
