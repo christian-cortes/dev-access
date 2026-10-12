@@ -36,6 +36,16 @@ AREAS = {
             "ups.comm_restored": {"title": "Comunicación restaurada", "level": "info"},
         },
     },
+    "manager": {
+        "title": "Manager (proyectos y despliegues)",
+        "scoped": True,
+        "events": {
+            "deploy.failed": {"title": "Despliegue fallido", "level": "critical"},
+            "deploy.ok": {"title": "Despliegue completado", "level": "info"},
+            "rollback.done": {"title": "Rollback aplicado", "level": "warning"},
+            "drift.detected": {"title": "Drift detectado", "level": "warning"},
+        },
+    },
 }
 
 _LEVEL_RANK = {"info": 0, "warning": 1, "critical": 2}
