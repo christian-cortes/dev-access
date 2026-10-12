@@ -6,10 +6,11 @@
        Mayús+clic toma un rango; no hay casillas por fila.
      - Menú ⋮ por fila: acciones específicas de cada tarea.
    Las columnas Destino y Programación viven en una fila de detalle tras el signo +.
-   Mientras una copia corre, la barra de progreso se muestra dentro del Estado. */
+   Mientras una copia corre, el Estado muestra el % solo si es real (medido); si no,
+   el tiempo transcurrido en el propio badge EN CURSO. */
 import {
   $, el, pill, fmtGb, fmtDate, fmtDuration, relTime,
-  relTimeFuture, scheduleText, toast, confirmDialog,
+  relTimeFuture, scheduleText, toast, confirmDialog, statusClass, statusLabel,
 } from '../ui.js';
 import { sparkline, barList, emptyChart, diskGauge } from '../chart.js';
 
@@ -241,31 +242,60 @@ function renderSummary(state) {
 const COLSPAN = 7;
 
 /* Barra de progreso de una copia en curso (dentro de la celda Estado).
-   El porcentaje va dentro de la barra. */
+   Solo se dibuja si el porcentaje es real; si no, el tiempo va en el badge. */
 function progressBar(job) {
   const p = job.progress || {};
-  const unknown = p.percent === null || p.percent === undefined;
-  const value = unknown ? 0 : Math.max(0, Math.min(100, Number(p.percent) || 0));
+  const value = Math.max(0, Math.min(100, Number(p.percent) || 0));
   const fill = el('div', {
-    class: 'progress-bar' + (unknown ? ' progress-bar-striped progress-bar-animated' : ''),
-    style: 'width:' + (unknown ? 100 : value) + '%',
-    text: unknown ? '…' : value + '%',
+    class: 'progress-bar',
+    style: 'width:' + value + '%',
+    text: value + '%',
   });
   const bar = el('div', {
     class: 'progress progress-cell', role: 'progressbar',
     'aria-valuenow': String(value), 'aria-valuemin': '0', 'aria-valuemax': '100',
-    title: p.detail || 'progreso estimado por duración típica',
+    title: p.detail || 'progreso medido',
     'data-live': '1',
-    'data-started': job.last_run ? (job.last_run.started_at || '') : '',
-    'data-typical': p.typical_s ? String(p.typical_s) : '',
   }, [fill]);
   return el('div', { class: 'progress-wrap' }, [bar]);
 }
 
-function statusCell(job) {
-  const cell = el('td', {}, [pill(job.status, job.status_detail)]);
+/* Tiempo transcurrido de una copia en curso: el del servidor o, si falta, el que se
+   deduce del arranque de la última corrida (para poder refrescarlo con el reloj). */
+function elapsedLabel(job) {
   const p = job.progress || {};
-  if (p.live || job.status === 'EN_CURSO') cell.appendChild(progressBar(job));
+  if (p.elapsed_s !== null && p.elapsed_s !== undefined) return fmtDuration(p.elapsed_s);
+  const started = job.last_run && job.last_run.started_at;
+  if (!started) return '';
+  const seconds = Math.round((Date.now() - new Date(started).getTime()) / 1000);
+  return isFinite(seconds) && seconds >= 0 ? fmtDuration(seconds) : '';
+}
+
+/* Badge EN CURSO: añade el % solo si es real; si no, el tiempo transcurrido; con
+   ninguno de los dos queda el estado a secas. */
+function runningBadge(job) {
+  const p = job.progress || {};
+  const hasPercent = p.real === true && p.percent !== null && p.percent !== undefined;
+  const suffix = hasPercent ? ' · ' + Math.round(Number(p.percent)) + '%'
+    : (elapsedLabel(job) ? ' · ' + elapsedLabel(job) : '');
+  const started = job.last_run ? (job.last_run.started_at || '') : '';
+  const badge = el('span', {
+    class: 'badge rounded-pill pill-live pill-' + statusClass(job.status),
+    text: statusLabel(job.status) + suffix,
+    'data-started': started,
+    'data-real': hasPercent ? '1' : '0',
+  });
+  if (job.status_detail) badge.title = job.status_detail;
+  return badge;
+}
+
+function statusCell(job) {
+  const p = job.progress || {};
+  const running = p.live || job.status === 'EN_CURSO';
+  const cell = el('td', {}, [running ? runningBadge(job) : pill(job.status, job.status_detail)]);
+  if (running && p.real === true && p.percent !== null && p.percent !== undefined) {
+    cell.appendChild(progressBar(job));
+  }
   return cell;
 }
 
@@ -641,9 +671,11 @@ function exportCsv(jobs) {
   const lines = [head.join(',')];
   jobs.forEach((job) => {
     const p = job.progress || {};
+    const progress = (p.real && p.percent !== null && p.percent !== undefined)
+      ? p.percent + '%' : (elapsedLabel(job) || '');
     lines.push([
       job.slug, job.name, job.status,
-      p.percent === null || p.percent === undefined ? '' : p.percent,
+      progress,
       job.size_bytes === null || job.size_bytes === undefined ? '' : job.size_bytes,
       job.last_run ? job.last_run.started_at : '',
       job.next_run || '', job.dest_rel || '', job.enabled ? '1' : '0',
@@ -784,24 +816,18 @@ async function handleBulk(action) {
   }
 }
 
-/* La barra avanza entre refrescos del servidor con el reloj local, usando la
-   duración típica que ya envió el backend (`data-typical`). */
+/* El badge EN CURSO refresca el tiempo transcurrido con el reloj local entre
+   refrescos del servidor (el % solo se muestra si es real y llega medido). */
 function startTicker() {
   if (tickTimer) return;
   tickTimer = setInterval(() => {
-    document.querySelectorAll('#jobs-body .progress-cell[data-live="1"]').forEach((bar) => {
-      const typical = Number(bar.getAttribute('data-typical')) || 0;
-      const started = bar.getAttribute('data-started');
-      if (!typical || !started) return;
-      const elapsed = (Date.now() - new Date(started).getTime()) / 1000;
+    document.querySelectorAll('#jobs-body .pill-live[data-started]').forEach((badge) => {
+      if (badge.getAttribute('data-real') === '1') return;
+      const started = badge.getAttribute('data-started');
+      if (!started) return;
+      const elapsed = Math.round((Date.now() - new Date(started).getTime()) / 1000);
       if (!isFinite(elapsed) || elapsed < 0) return;
-      const percent = Math.min(99, Math.round(elapsed * 100 / typical));
-      const fill = bar.firstElementChild;
-      if (fill) {
-        fill.style.width = percent + '%';
-        fill.textContent = percent + '%';
-      }
-      bar.setAttribute('aria-valuenow', String(percent));
+      badge.textContent = statusLabel('EN_CURSO') + ' · ' + fmtDuration(elapsed);
     });
   }, 2000);
 }

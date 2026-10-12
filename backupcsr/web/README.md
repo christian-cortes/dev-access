@@ -21,11 +21,12 @@ con `backups.cortexdev.win`/`pbs`, que es Proxmox Backup Server).
   *Responsive*).
   Cada fila muestra la **criticidad** (badge) y las **etiquetas**, y el buscador filtra además por
   etiquetas, responsable y notas (ver [Ficha de la tarea](#ficha-de-la-tarea)).
-- **Progreso por tarea**: mientras la copia corre, su barra aparece dentro de la columna
-  **Estado** (no hay columna extra) con el **porcentaje dentro** de la barra y se **estima** con
-  la duración típica del histórico de `runs` (`min(99, transcurrido/típica)`), sin pre-pases ni
-  recorridos extra. La barra avanza entre refrescos con el reloj local, no solo cada 30 s. En
-  reposo no se muestra barra. Ver [Progreso y acciones masivas](#progreso-y-acciones-masivas).
+- **Progreso por tarea**: mientras la copia corre, la columna **Estado** (no hay columna extra)
+  muestra el **porcentaje solo si es real** (medido; hoy los scripts no lo publican, así que lo
+  normal es el tiempo); si no hay porcentaje real, el **tiempo transcurrido** va dentro del propio
+  badge `EN CURSO` (`EN CURSO · 12m`) y sin ninguno de los dos queda `EN CURSO` a secas. El tiempo
+  se refresca con el reloj local, no solo cada 30 s. En reposo no se muestra barra ni tiempo.
+  Ver [Progreso y acciones masivas](#progreso-y-acciones-masivas).
 - **Tamaño (GB) por tarea**: recorrido cacheado del destino de cada job en `/mnt/nas`, con
   histórico (`size_snapshots`) para ver crecimiento. `ruta56-bd` excluye `storage` (`size_exclude`
   en `jobs.yml`) para no contar dos veces el árbol compartido con `ruta56-web`.
@@ -378,11 +379,13 @@ lo único que puede quedar en caché.
 
 ### Progreso y acciones masivas
 
-- **Progreso en curso**: `api._progress` estima el porcentaje con la mediana de duración de las
-  últimas corridas OK (`min(99, transcurrido/típica)`); sin histórico deja la barra indeterminada.
-  Se considera en curso también cuando el estado es `EN_CURSO` aunque el lockfile no sea legible.
-  La barra se dibuja dentro de la columna **Estado** y un ticker local la avanza cada 2 s usando
-  `progress.typical_s` y `last_run.started_at`, para que no dependa del refresco de 30 s.
+- **Progreso en curso**: `api._progress` devuelve `percent` solo si viene de una medición real
+  (el script puede publicarlo en la corrida); si no, `percent` es `null`, `real=false` y se envía
+  `elapsed_s`. El panel, en el badge `EN CURSO`, añade `· <n>%` cuando el porcentaje es real; si
+  no, añade el tiempo transcurrido (`EN CURSO · 12m`); con ninguno de los dos deja `EN CURSO`. Un
+  ticker local actualiza el tiempo cada 2 s con `last_run.started_at`, sin depender del refresco de
+  30 s. Se considera en curso también cuando el estado es `EN_CURSO` aunque el lockfile no sea
+  legible. La barra de progreso solo se dibuja cuando hay un porcentaje real.
   No modifica los scripts ni añade un pre-pase de listado remoto.
 - **Sin barra en reposo**: la columna Progreso se eliminó; el estado de una tarea detenida se lee
   en su píldora (`OK`/`TARDE`/`FALLO`/…).

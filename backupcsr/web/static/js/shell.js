@@ -5,7 +5,7 @@ import {
   $, el, icon, pill, fmtDate, fmtDuration, fmtGb, relTime, toast, confirmDialog,
   openModal, hideModal,
 } from './ui.js';
-import { panel } from './views/panel.js';
+import { panel } from './views/panel.js?v=14';
 import { history } from './views/history.js';
 import { files } from './views/files.js';
 import { schedule, openEditor } from './views/schedule.js';
@@ -131,6 +131,7 @@ function jobsSignature(jobs) {
     job.last_run && job.last_run.started_at, job.last_run && job.last_run.duration_s,
     job.next_run, job.size && job.size.bytes, job.size && job.size.pending ? 1 : 0,
     job.progress && job.progress.live ? 1 : 0, job.progress && job.progress.state,
+    job.progress && job.progress.percent, job.progress && job.progress.real ? 1 : 0,
   ].join(':')).join('|');
 }
 

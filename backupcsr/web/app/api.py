@@ -333,25 +333,31 @@ def _progress(job: dict, runs: list[dict], latest: dict | None, running: bool,
     """
     typical = _typical_duration(runs)
     if not job.get("enabled"):
-        return {"state": "disabled", "percent": 0, "live": False,
-                "typical_s": typical, "detail": "tarea deshabilitada"}
+        return {"state": "disabled", "percent": 0, "live": False, "real": False,
+                "elapsed_s": None, "typical_s": typical, "detail": "tarea deshabilitada"}
     # EN_CURSO manda aunque el lockfile no sea legible (p. ej. permisos): el log ya
-    # dijo que arrancó y dentro de la gracia debe mostrarse el avance estimado.
+    # dijo que arrancó y dentro de la gracia debe mostrarse el avance.
     if (running or status == "EN_CURSO") and latest and latest.get("started_at"):
         started = logs.from_naive(latest["started_at"])
         elapsed = max(0, int((reference - started).total_seconds()))
-        if typical:
-            percent = min(99, round(elapsed * 100 / typical))
-            detail = f"{_short_duration(elapsed)} de ~{_short_duration(typical)}"
+        # Solo el porcentaje medido de verdad se muestra como %; si no hay fuente real
+        # (el script aún no lo publica), el panel prefiere el tiempo transcurrido antes
+        # que un porcentaje estimado que aparentaría ser real.
+        measured = latest.get("percent")
+        if measured is None:
+            percent, real = None, False
+            detail = "en curso · " + _short_duration(elapsed)
         else:
-            percent = None
-            detail = "en curso (sin histórico de duración)"
-        return {"state": "running", "percent": percent, "live": True,
-                "typical_s": typical, "detail": detail}
+            percent, real = max(0, min(100, int(measured))), True
+            detail = (f"{_short_duration(elapsed)} de ~{_short_duration(typical)}"
+                      if typical else _short_duration(elapsed) + " en curso")
+        return {"state": "running", "percent": percent, "live": True, "real": real,
+                "elapsed_s": elapsed, "typical_s": typical, "detail": detail}
 
     state = _PROGRESS_STATE.get(status, "never")
     if status in ("FALLO", "NUNCA"):
-        return {"state": state, "percent": 0, "live": False, "typical_s": typical,
+        return {"state": state, "percent": 0, "live": False, "real": False,
+                "elapsed_s": None, "typical_s": typical,
                 "detail": "última ejecución falló" if status == "FALLO"
                           else "sin ejecuciones registradas"}
 
@@ -363,14 +369,14 @@ def _progress(job: dict, runs: list[dict], latest: dict | None, running: bool,
             percent = max(0, min(100, round(remain * 100 / span)))
             detail = ("próxima en " + _short_duration(int(remain))) if remain >= 0 \
                 else ("vencida hace " + _short_duration(int(-remain)))
-            return {"state": state, "percent": percent, "live": False,
-                    "typical_s": typical, "detail": detail}
+            return {"state": state, "percent": percent, "live": False, "real": False,
+                    "elapsed_s": None, "typical_s": typical, "detail": detail}
 
     detail = {"ok": "al día", "late": "cierre anterior a lo esperado",
               "partial": "cierre con archivos con error",
               "omitted": "ronda omitida"}.get(state, "sin datos")
-    return {"state": state, "percent": 0, "live": False, "typical_s": typical,
-            "detail": detail}
+    return {"state": state, "percent": 0, "live": False, "real": False,
+            "elapsed_s": None, "typical_s": typical, "detail": detail}
 
 
 def collect_jobs() -> list[dict]:

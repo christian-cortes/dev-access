@@ -73,14 +73,21 @@ check("típica: sin corridas OK es None",
 running = run(REF - timedelta(minutes=5), None, status="EN_CURSO")
 p = api._progress({"enabled": 1, "slug": "demo"}, runs, running, True, "EN_CURSO", None, REF)
 check("en curso: estado running", p["state"] == "running" and p["live"] is True, p)
-check("en curso: 5m de ~10m = 50%", p["percent"] == 50, p)
-check("en curso: acotado a 99%",
-      api._progress({"enabled": 1}, runs, run(REF - timedelta(hours=5), None), True,
-                    "EN_CURSO", None, REF)["percent"] == 99)
-check("en curso: sin histórico => indeterminado",
+check("en curso: sin % real => percent None y cuenta el tiempo",
+      p["percent"] is None and p["real"] is False and p["elapsed_s"] == 300, p)
+check("en curso: el detalle lleva el tiempo transcurrido", p["detail"] == "en curso · 5m",
+      p["detail"])
+check("en curso: un % medido real se respeta",
+      api._progress({"enabled": 1}, runs, {**running, "percent": 42}, True,
+                    "EN_CURSO", None, REF)["percent"] == 42)
+real = api._progress({"enabled": 1}, runs, {**running, "percent": 150}, True,
+                     "EN_CURSO", None, REF)
+check("en curso: % real acotado a 100 y marcado real",
+      real["percent"] == 100 and real["real"] is True, real)
+check("en curso: sin histórico => percent None, no bloquea el tiempo",
       api._progress({"enabled": 1}, [], running, True, "EN_CURSO", None, REF)["percent"] is None)
-check("en curso: EN_CURSO estima aunque el lockfile no sea legible (running=False)",
-      api._progress({"enabled": 1}, runs, running, False, "EN_CURSO", None, REF)["percent"] == 50)
+check("en curso: EN_CURSO sigue vivo aunque el lockfile no sea legible (running=False)",
+      api._progress({"enabled": 1}, runs, running, False, "EN_CURSO", None, REF)["live"] is True)
 
 # ------------------------------------------------------------- en reposo
 job = {"enabled": 1, "slug": "demo"}
@@ -108,7 +115,8 @@ collected = api.collect_jobs()
 check("collect_jobs: una tarea con progress",
       len(collected) == 1 and "progress" in collected[0], collected)
 check("collect_jobs: progress con las claves esperadas",
-      set(collected[0]["progress"]) == {"state", "percent", "live", "typical_s", "detail"},
+      set(collected[0]["progress"]) == {
+          "state", "percent", "live", "real", "elapsed_s", "typical_s", "detail"},
       collected[0]["progress"])
 check("collect_jobs: incluye id para el snapshot de tamaño del lote", "id" in collected[0],
       collected[0].keys())
