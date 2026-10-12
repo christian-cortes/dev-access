@@ -91,20 +91,33 @@ class LoginIn(BaseModel):
 
 
 def _safe_next(value: str) -> str:
-    """Destino tras el login: ruta relativa o host *.cortexdev.win, nunca externo."""
+    """Destino tras el login: ruta relativa o host *.cortexdev.win, nunca externo.
+
+    Descarta destinos que son subrecursos (el navegador pide favicon/JS/CSS sin
+    sesión y no deben ser a donde vuelve el usuario tras entrar).
+    """
     from urllib.parse import unquote, urlparse
 
     # El frontend puede escribir la cookie percent-encoded (encodeURIComponent).
     raw = unquote((value or "").strip())
     if not raw:
         return "/"
+
+    def _es_asset(path: str) -> bool:
+        limpio = (path or "").split("?", 1)[0].split("#", 1)[0].lower()
+        return limpio.endswith((
+            ".ico", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp",
+            ".css", ".js", ".json", ".map", ".woff", ".woff2",
+            ".ttf", ".eot", ".txt", ".xml",
+        ))
+
     if raw.startswith("/") and not raw.startswith("//") and "\\" not in raw:
-        return raw
+        return "/" if _es_asset(raw) else raw
     try:
         parsed = urlparse(raw)
         host = parsed.hostname or ""
         if parsed.scheme == "https" and (host == "cortexdev.win" or host.endswith(".cortexdev.win")):
-            return raw
+            return "/" if _es_asset(parsed.path) else raw
     except ValueError:
         pass
     return "/"

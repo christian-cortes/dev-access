@@ -91,8 +91,14 @@ location = /_auth {
     proxy_set_header X-Original-URI $request_uri;
 }
 location @sso_login {
-    add_header Set-Cookie "cortex_sso_next=$scheme://$host$uri; Domain=.cortexdev.win; Path=/; Max-Age=300; Secure; SameSite=Lax";
-    return 302 https://index.cortexdev.win/login.html;
+    # Solo las navegaciones de documento recuerdan el destino; los subrecursos
+    # (favicon, JS, CSS...) devuelven 401 sin tocar la cookie (si no, el favicon
+    # del login sobrescribe cortex_sso_next y el login acaba en /favicon.ico).
+    if ($sso_is_document) {
+        add_header Set-Cookie "cortex_sso_next=$scheme://$host$uri; Domain=.cortexdev.win; Path=/; Max-Age=300; Secure; SameSite=Lax";
+        return 302 https://index.cortexdev.win/login.html;
+    }
+    return 401;
 }
 
 # --- login/logout/me del servicio notify ---
@@ -143,6 +149,11 @@ location / {
 
 Aplicar sin recrear nginx: `docker exec access_nginx nginx -t && docker exec access_nginx nginx -s reload`
 (o el proceso de reload del proyecto manager).
+
+> `$sso_is_document` lo definen los `map` de `nginx/conf.d/sso.conf` (incluido a
+> nivel `http`, junto a los demás vhosts). Si el vhost del manager vive en otro
+> nginx, hay que definir allí los mismos `map` (solo `Sec-Fetch-Dest: document`
+> + `Accept: text/html` recuerdan el destino).
 
 > Nota: los bloques `/api/auth/` están duplicados por vhost en este repo (index/copias/ups).
 > Si se replica en manager, considera extraerlos a un snippet compartido
