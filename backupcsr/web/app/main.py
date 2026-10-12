@@ -52,20 +52,27 @@ def _snapshot_sizes(jobs: list[dict]) -> None:
                 sizes.save_snapshot(job_id, size)
 
 
+def _poll_once() -> None:
+    if not db.available():
+        return
+    jobs = api.effective_jobs()
+    for job in jobs:
+        logs.store_runs(job, logs.parse_slug(job["slug"]))
+    _snapshot_sizes(jobs)
+    sizes.warm(jobs)
+    # Aviso externo: fatal al abrirse el incidente y recuperación al resolverse.
+    notify.flush_immediate()
+    notify.flush_recovery()
+    notify.flush_push()
+
+
 async def _poll() -> None:
     while True:
         try:
-            if db.available():
-                jobs = api.effective_jobs()
-                for job in jobs:
-                    logs.store_runs(job, logs.parse_slug(job["slug"]))
-                _snapshot_sizes(jobs)
-                sizes.warm(jobs)
-                # Aviso externo: fatal al abrirse el incidente y recuperación al resolverse.
-                # Fuera del bucle de eventos: el correo hace I/O bloqueante (SMTP/sendmail).
-                await asyncio.to_thread(notify.flush_immediate)
-                await asyncio.to_thread(notify.flush_recovery)
-                await asyncio.to_thread(notify.flush_push)
+            # El cuerpo hace E/S bloqueante (BD, escaneo de tamaños en el NAS y correo):
+            # se ejecuta en un hilo para no congelar el bucle de eventos, que era lo que
+            # dejaba al portal sin responder durante los escaneos.
+            await asyncio.to_thread(_poll_once)
         except Exception:  # noqa: BLE001
             log.exception("falló el ciclo de sondeo")
         await asyncio.sleep(config.POLL_INTERVAL)

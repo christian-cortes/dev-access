@@ -142,11 +142,23 @@ def _public(data: dict) -> dict:
 
 
 def current(job: dict) -> dict:
-    """Tamaño cacheado del job; `pending=True` si aún no se ha medido."""
+    """Tamaño cacheado del job; `pending=True` si aún no se ha medido.
+
+    No espera a un escaneo en curso: `_warm_worker`/`job_size` hacen el recorrido
+    del NAS en segundo plano tomando el lock del slug, y aquí responder con lo
+    cacheado evita que /summary y /jobs se queden colgados durante esos escaneos.
+    """
     if _disabled(job):
         return unmeasured()
-    with _lock_for(job.get("slug") or ""):
-        cached = _cache.get(job.get("slug") or "")
+    slug = job.get("slug") or ""
+    lock = _lock_for(slug)
+    if not lock.acquire(blocking=False):
+        cached = _cache.get(slug)
+    else:
+        try:
+            cached = _cache.get(slug)
+        finally:
+            lock.release()
     if not cached:
         return {
             "bytes": None, "files": 0, "truncated": False, "error": None,
