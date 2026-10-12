@@ -148,9 +148,6 @@ button { font: inherit; }
   place-items: center;
   cursor: pointer;
 }
-.icon-btn .i-moon { display: none; }
-html[data-theme="light"] .icon-btn .i-sun { display: none; }
-html[data-theme="light"] .icon-btn .i-moon { display: block; }
 
 .topline {
   display: flex;
@@ -1019,3 +1016,25 @@ body {
 }
 .modal-close:hover { color: var(--bad); border-color: var(--bad); }
 .modal-body { padding: 18px; overflow-y: auto; }
+
+/* Menú de usuario (icono -> desplegable con nombre, tema, ajustes y salir). */
+.user-menu { position: relative; }
+.user-menu-pop {
+  position: absolute; top: calc(100% + 10px); right: 0; z-index: 45;
+  min-width: 200px; padding: 6px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: var(--shadow);
+  display: grid; gap: 2px;
+}
+.user-menu-pop[hidden] { display: none; }
+.user-menu-name {
+  padding: 8px 10px; font-weight: 600; font-size: 13px;
+  color: var(--txt); overflow-wrap: anywhere;
+}
+.user-menu-sep { height: 1px; background: var(--line); margin: 4px 2px; }
+.user-menu-item {
+  text-align: left; width: 100%; padding: 8px 10px;
+  border: 0; border-radius: 8px; background: transparent;
+  color: var(--txt); font-size: 13px; cursor: pointer;
+}
+.user-menu-item:hover { background: rgba(127, 127, 127, 0.14); }

@@ -47,14 +47,12 @@
     react: 'React', python: 'Python', mysql: 'MySQL', docker: 'Docker',
     proxmox: 'Proxmox', pihole: 'Pi-hole', netdata: 'Netdata', nginx: 'Nginx',
     portainer: 'Portainer', phpmyadmin: 'phpMyAdmin', powerbi: 'Power BI',
-    'uptime-kuma': 'Uptime Kuma', certificate: 'Certificado local',
+    certificate: 'Certificado local',
     server: 'Infraestructura', linux: 'Linux', grafana: 'Grafana'
   };
 
-  var SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
-  var MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
   var BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>';
-  var GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  var USER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
 
   function currentTheme() {
     var root = document.documentElement;
@@ -62,12 +60,15 @@
     return theme === 'light' ? 'light' : 'dark';
   }
 
-  function renderToggle(btn, theme) {
-    var goingLight = theme !== 'light';
-    btn.innerHTML = goingLight ? SUN : MOON;
-    btn.setAttribute('aria-label', goingLight ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro');
-    btn.setAttribute('aria-pressed', theme === 'light' ? 'true' : 'false');
-    btn.title = btn.getAttribute('aria-label');
+  function setTheme(next) {
+    var root = document.documentElement;
+    root.setAttribute('data-theme', next);
+    root.setAttribute('data-bs-theme', next);
+    try { localStorage.setItem('cortexdev-theme', next); } catch (e) {}
+  }
+
+  function toggleTheme() {
+    setTheme(currentTheme() === 'light' ? 'dark' : 'light');
   }
 
   /* Etiquetas para el layout tipo tarjeta en movil (se repite tras cada render) */
@@ -144,8 +145,8 @@
     return tools;
   }
 
-  /* Ajustes de notificaciones: un icono de engranaje en la barra abre un modal
-     con el componente #push-settings (el mismo que usa la página dedicada). */
+  /* Ajustes de notificaciones: el menú de usuario abre un modal con el
+     componente #push-settings (el mismo que usa la página dedicada). */
   function loadPushClient() {
     if (document.querySelector('script[data-push-client]')) return;
     var s = document.createElement('script');
@@ -155,87 +156,63 @@
     document.head.appendChild(s);
   }
 
+  function ensureNotifModal() {
+    if (document.getElementById('notifModal')) return;
+    var modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'notifModal';
+    modal.tabIndex = -1;
+    modal.setAttribute('aria-hidden', 'true');
+    modal.innerHTML =
+      '<div class="modal-dialog modal-dialog-centered">' +
+      '<div class="modal-content">' +
+      '<div class="modal-header"><h5 class="modal-title">Notificaciones</h5>' +
+      '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>' +
+      '<div class="modal-body">' +
+      '<p class="small text-body-secondary mb-2">Activa este dispositivo y elige qué avisos del portal recibir.</p>' +
+      '<div id="push-settings" data-area="index" data-scopes-url="/api/scopes" data-scopes-label="proyecto"></div>' +
+      '</div></div></div>';
+    document.body.appendChild(modal);
+  }
+
   function openNotifModal() {
-    var modal = document.getElementById('notifModal');
-    if (!modal || !window.bootstrap || !window.bootstrap.Modal) {
+    // En la página dedicada ya existe #push-settings (sin modal inyectado): no hay nada que abrir.
+    if (document.getElementById('push-settings') && !document.getElementById('notifModal')) return;
+    ensureNotifModal();
+    if (!window.bootstrap || !window.bootstrap.Modal) {
       location.href = '/notificaciones.html';
       return;
     }
     loadPushClient();
-    window.bootstrap.Modal.getOrCreateInstance(modal).show();
+    window.bootstrap.Modal.getOrCreateInstance(document.getElementById('notifModal')).show();
   }
 
-  function addSettingsButton() {
-    // En la página dedicada ya existe #push-settings: no duplicar el modal.
-    if (document.getElementById('push-settings')) return;
+  /* --------------------------- menú de usuario --------------------------- */
+  /* El login es único en el índice. El icono de usuario abre un desplegable con
+     el nombre, el cambio de tema, los ajustes de notificaciones y el cierre de
+     la sesión compartida (.cortexdev.win). */
+
+  function addUserMenu() {
     var tools = headerTools();
-    if (!tools || document.getElementById('notif-settings-toggle')) return;
+    if (!tools || tools.querySelector('.user-menu')) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'dropdown user-menu';
+    wrap.innerHTML =
+      '<button class="btn btn-outline-secondary rounded-circle user-toggle" type="button" id="user-toggle"' +
+      ' data-bs-toggle="dropdown" aria-expanded="false" aria-label="Menú de usuario" title="Cuenta">' + USER + '</button>' +
+      '<ul class="dropdown-menu dropdown-menu-end" aria-labelledby="user-toggle">' +
+      '<li><span class="dropdown-item-text user-menu-name" id="user-name">Cuenta</span></li>' +
+      '<li><hr class="dropdown-divider"></li>' +
+      '<li><button class="dropdown-item" type="button" id="user-theme">Cambiar tema</button></li>' +
+      '<li><button class="dropdown-item" type="button" id="user-settings">Ajustes</button></li>' +
+      '<li><hr class="dropdown-divider"></li>' +
+      '<li><button class="dropdown-item" type="button" id="user-logout">Cerrar sesión</button></li>' +
+      '</ul>';
+    tools.appendChild(wrap);
 
-    if (!document.getElementById('notifModal')) {
-      var modal = document.createElement('div');
-      modal.className = 'modal fade';
-      modal.id = 'notifModal';
-      modal.tabIndex = -1;
-      modal.setAttribute('aria-hidden', 'true');
-      modal.innerHTML =
-        '<div class="modal-dialog modal-dialog-centered">' +
-        '<div class="modal-content">' +
-        '<div class="modal-header"><h5 class="modal-title">Notificaciones</h5>' +
-        '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>' +
-        '<div class="modal-body">' +
-        '<p class="small text-body-secondary mb-2">Activa este dispositivo y elige qué avisos del portal recibir.</p>' +
-        '<div id="push-settings" data-area="index" data-scopes-url="/api/scopes" data-scopes-label="proyecto"></div>' +
-        '</div></div></div>';
-      document.body.appendChild(modal);
-    }
-
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.id = 'notif-settings-toggle';
-    btn.className = 'btn btn-outline-secondary rounded-circle settings-toggle';
-    btn.setAttribute('aria-label', 'Ajustes de notificaciones');
-    btn.title = 'Ajustes de notificaciones';
-    btn.innerHTML = GEAR;
-    btn.addEventListener('click', openNotifModal);
-    tools.appendChild(btn);
-  }
-
-  function addThemeToggle() {
-    var tools = headerTools();
-    if (!tools || tools.querySelector('.theme-toggle')) return;
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn btn-outline-secondary rounded-circle theme-toggle';
-    renderToggle(btn, currentTheme());
-    btn.addEventListener('click', function () {
-      var next = currentTheme() === 'light' ? 'dark' : 'light';
-      var root = document.documentElement;
-      root.setAttribute('data-theme', next);
-      root.setAttribute('data-bs-theme', next);
-      try { localStorage.setItem('cortexdev-theme', next); } catch (e) {}
-      renderToggle(btn, next);
-    });
-    tools.appendChild(btn);
-  }
-
-  /* ------------------------------ sesión --------------------------------- */
-  /* El login es único en el índice; aquí solo se muestra el usuario y se cierra
-     la sesión compartida (.cortexdev.win), volviendo a la página de acceso. */
-
-  function addSessionControls() {
-    var tools = headerTools();
-    if (!tools || tools.querySelector('.session-box')) return;
-    var box = document.createElement('div');
-    box.className = 'session-box d-flex align-items-center gap-2';
-
-    var name = document.createElement('span');
-    name.className = 'small text-body-secondary session-user';
-    name.hidden = true;
-
-    var out = document.createElement('button');
-    out.type = 'button';
-    out.className = 'btn btn-outline-secondary btn-sm';
-    out.textContent = 'Salir';
+    wrap.querySelector('#user-theme').addEventListener('click', toggleTheme);
+    wrap.querySelector('#user-settings').addEventListener('click', openNotifModal);
+    var out = wrap.querySelector('#user-logout');
     out.addEventListener('click', function () {
       out.disabled = true;
       fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
@@ -243,17 +220,11 @@
         .then(function () { location.href = '/login.html'; });
     });
 
-    box.appendChild(name);
-    box.appendChild(out);
-    tools.appendChild(box);
-
     fetch('/api/auth/me', { credentials: 'same-origin' })
       .then(function (res) { return res.ok ? res.json() : null; })
       .then(function (user) {
-        if (user && user.username) {
-          name.textContent = user.username;
-          name.hidden = false;
-        }
+        var name = wrap.querySelector('#user-name');
+        if (user && user.username) name.textContent = user.username;
       })
       .catch(function () {});
   }
@@ -439,10 +410,8 @@
     addCardIcons();
     addNameIcons();
     headerTools();
-    addThemeToggle();
-    addSettingsButton();
     addNotificationsBell();
-    addSessionControls();
+    addUserMenu();
   }
 
   document.addEventListener('portal:rendered', enhance);

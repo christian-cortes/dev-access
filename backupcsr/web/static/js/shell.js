@@ -559,24 +559,12 @@ function currentTheme() {
   return (root.getAttribute('data-bs-theme') || root.getAttribute('data-theme')) === 'dark' ? 'dark' : 'light';
 }
 
-function renderThemeButton() {
-  const button = $('theme-toggle');
-  if (!button) return;
-  const goingDark = currentTheme() === 'light';
-  button.innerHTML = goingDark ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
-  button.setAttribute('aria-label', goingDark ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro');
-}
-
-function setupTheme() {
-  renderThemeButton();
-  $('theme-toggle').addEventListener('click', () => {
-    const next = currentTheme() === 'dark' ? 'light' : 'dark';
-    const root = document.documentElement;
-    root.setAttribute('data-theme', next);
-    root.setAttribute('data-bs-theme', next);
-    try { localStorage.setItem('cortexdev-theme', next); } catch (e) {}
-    renderThemeButton();
-  });
+function toggleTheme() {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  const root = document.documentElement;
+  root.setAttribute('data-theme', next);
+  root.setAttribute('data-bs-theme', next);
+  try { localStorage.setItem('cortexdev-theme', next); } catch (e) {}
 }
 
 /* --------------------------------- modales -------------------------------- */
@@ -737,8 +725,10 @@ function setupTopbar() {
   setupFilters();
   const clearAlertsBtn = $('alerts-clear');
   if (clearAlertsBtn) clearAlertsBtn.addEventListener('click', clearAlerts);
-  const pushSettings = $('push-settings-toggle');
-  if (pushSettings) pushSettings.addEventListener('click', () => { closeAlertsMenu(); openModal('pushModal'); });
+  const userTheme = $('user-theme');
+  if (userTheme) userTheme.addEventListener('click', () => { closeAlertsMenu(); toggleTheme(); });
+  const userSettings = $('user-settings');
+  if (userSettings) userSettings.addEventListener('click', () => { closeAlertsMenu(); openModal('pushModal'); });
   $('menu-password').addEventListener('click', () => openPassword(state.user.username, true));
   $('password-save').addEventListener('click', savePassword);
   $('logout-btn').addEventListener('click', async () => {
@@ -809,7 +799,6 @@ window.__backupcsr = {
 };
 
 (async function init() {
-  setupTheme();
   setupDataIcons();
   setupSidebar();
   setupTopbar();

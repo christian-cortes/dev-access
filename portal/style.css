@@ -286,8 +286,8 @@ td.status .meta {
 .theme-toggle svg { width: 18px; height: 18px; display: block; }
 .theme-toggle:hover { border-color: var(--bs-primary); }
 
-/* Botón de ajustes de notificaciones (lo inyecta app.js) */
-.settings-toggle {
+/* Botón del menú de usuario (lo inyecta app.js) */
+.user-toggle {
   width: 38px;
   height: 38px;
   padding: 0;
@@ -295,12 +295,13 @@ td.status .meta {
   place-items: center;
 }
 
-.settings-toggle svg { width: 18px; height: 18px; display: block; }
-.settings-toggle:hover { border-color: var(--bs-primary); }
+.user-toggle svg { width: 18px; height: 18px; display: block; }
+.user-toggle:hover { border-color: var(--bs-primary); }
 
-/* Barra derecha del header: navegación + campana + usuario + salir en una fila */
+.user-menu-name { font-weight: 600; white-space: nowrap; }
+
+/* Barra derecha del header: navegación + campana + usuario en una fila */
 .header-tools { margin-left: auto; justify-content: flex-end; row-gap: .5rem; }
-.session-user { font-weight: 600; white-space: nowrap; }
 
 /* Campana de notificaciones (la inyecta app.js) */
 .notif-dropdown { display: inline-flex; }

@@ -12,7 +12,7 @@
 	<link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
 	<link rel="stylesheet" href="/style.css?v=10">
 	<script src="/vendor/bootstrap/bootstrap.bundle.min.js" defer></script>
-	<script type="module" src="/js/shell.js?v=12"></script>
+	<script type="module" src="/js/shell.js?v=13"></script>
 </head>
 
 <body>
@@ -71,19 +71,19 @@
 							<div class="alerts-menu-body" id="alerts-list"></div>
 						</div>
 					</div>
-					<button type="button" class="btn btn-outline-secondary icon-toggle" id="push-settings-toggle"
-						aria-label="Ajustes de notificaciones" title="Ajustes de notificaciones">
-						<i class="fa-solid fa-gear"></i>
-					</button>
-					<button type="button" class="btn btn-outline-secondary icon-toggle" id="theme-toggle"
-						aria-label="Cambiar tema"></button>
 					<div class="dropdown">
-						<button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-							data-bs-toggle="dropdown" aria-expanded="false" id="user-name">—</button>
-						<ul class="dropdown-menu dropdown-menu-end">
+						<button type="button" class="btn btn-outline-secondary icon-toggle" id="user-toggle"
+							data-bs-toggle="dropdown" aria-expanded="false" aria-label="Menú de usuario" title="Cuenta">
+							<i class="fa-solid fa-user"></i>
+						</button>
+						<ul class="dropdown-menu dropdown-menu-end" aria-labelledby="user-toggle">
+							<li><span class="dropdown-item-text fw-semibold" id="user-name">—</span></li>
+							<li><hr class="dropdown-divider"></li>
+							<li><button class="dropdown-item" type="button" id="user-theme">Cambiar tema</button></li>
+							<li><button class="dropdown-item" type="button" id="user-settings">Ajustes</button></li>
 							<li><button class="dropdown-item" type="button" id="menu-password">Cambiar mi contraseña</button></li>
 							<li><hr class="dropdown-divider"></li>
-							<li><button class="dropdown-item" type="button" id="logout-btn">Salir</button></li>
+							<li><button class="dropdown-item" type="button" id="logout-btn">Cerrar sesión</button></li>
 						</ul>
 					</div>
 				</div>

@@ -1116,6 +1116,20 @@
     }
   }
 
+  function setUserMenu(open) {
+    const pop = $("userMenuPop");
+    const btn = $("userBtn");
+    if (!pop) return;
+    pop.hidden = !open;
+    if (btn) btn.setAttribute("aria-expanded", String(open));
+  }
+
+  function logout() {
+    fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" })
+      .catch(() => {})
+      .then(() => { window.location.href = "https://index.cortexdev.win/login.html"; });
+  }
+
   function showView(view) {
     setMenu(false);
     state.view = view;
@@ -1220,14 +1234,33 @@
     if (menuBtn) menuBtn.addEventListener("click", () => setMenu(!document.body.classList.contains("menu-open")));
     const menuScrim = $("menuScrim");
     if (menuScrim) menuScrim.addEventListener("click", () => setMenu(false));
-    const settingsBtn = $("settingsBtn");
-    if (settingsBtn) settingsBtn.addEventListener("click", () => setSettingsModal(true));
     const settingsClose = $("settingsClose");
     if (settingsClose) settingsClose.addEventListener("click", () => setSettingsModal(false));
     const settingsModal = $("settingsModal");
     if (settingsModal) settingsModal.addEventListener("click", (e) => {
       if (e.target.hasAttribute("data-close")) setSettingsModal(false);
     });
+    const userBtn = $("userBtn");
+    if (userBtn) userBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setUserMenu($("userMenuPop").hidden);
+    });
+    const userTheme = $("userTheme");
+    if (userTheme) userTheme.addEventListener("click", () => {
+      setUserMenu(false);
+      applyTheme(state.theme === "dark" ? "light" : "dark");
+    });
+    const userSettings = $("userSettings");
+    if (userSettings) userSettings.addEventListener("click", () => {
+      setUserMenu(false);
+      setSettingsModal(true);
+    });
+    const userLogout = $("userLogout");
+    if (userLogout) userLogout.addEventListener("click", logout);
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((u) => { if (u && u.username) $("userName").textContent = u.username; })
+      .catch(() => {});
     const monthPrev = $("monthPrev");
     if (monthPrev) monthPrev.addEventListener("click", () => shiftMonth(-1));
     const monthNext = $("monthNext");
@@ -1242,6 +1275,8 @@
     document.addEventListener("click", (e) => {
       const wrap = $("notifWrap");
       if (wrap && !wrap.contains(e.target)) setNotifMenu(false);
+      const um = $("userMenu");
+      if (um && !um.contains(e.target)) setUserMenu(false);
     });
     renderNotifications();
     showView("dashboard");
@@ -1252,7 +1287,6 @@
     setInterval(tickLastSeen, 1000);
   }
 
-  $("themeBtn").addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setMenu(false); setNotifMenu(false); setSettingsModal(false); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setMenu(false); setNotifMenu(false); setSettingsModal(false); setUserMenu(false); } });
   document.addEventListener("DOMContentLoaded", init);
 })();
