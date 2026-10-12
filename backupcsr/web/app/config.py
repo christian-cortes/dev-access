@@ -41,7 +41,7 @@ DB_PORT = _int("BACKUP_DB_PORT", 3306)
 DB_NAME = os.environ.get("BACKUP_DB_NAME", "backupcsr")
 DB_USER = os.environ.get("BACKUP_DB_USER", "backupcsr_web")
 DB_PASSWORD = os.environ.get("BACKUP_DB_PASSWORD", "")
-DB_CONNECT_TIMEOUT = _int("BACKUP_DB_CONNECT_TIMEOUT", 5)
+DB_CONNECT_TIMEOUT = _int("BACKUP_DB_CONNECT_TIMEOUT", 3)
 
 # --- Sesión ---
 SECRET_KEY = os.environ.get("BACKUP_SECRET_KEY", "").strip()

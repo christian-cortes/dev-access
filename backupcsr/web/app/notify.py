@@ -232,7 +232,8 @@ def _recent_resolved() -> list[dict]:
     return db.query(
         "SELECT i.*, j.slug AS job_slug, j.name AS job_name FROM incidents i "
         "JOIN jobs j ON j.id = i.job_id "
-        "WHERE i.resolved_at IS NOT NULL AND i.resolved_at >= %s ORDER BY i.resolved_at",
+        "WHERE i.resolved_at IS NOT NULL AND i.`level` = 'danger' "
+        "AND i.resolved_at >= %s ORDER BY i.resolved_at",
         (since,),
     )
 

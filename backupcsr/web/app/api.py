@@ -6,6 +6,7 @@ import io
 import json
 import logging
 import re
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -713,10 +714,24 @@ async def me(user: dict = Depends(auth.current_user)):
 
 # ------------------------------ health ------------------------------------
 
+# Cache de disponibilidad de MySQL para /health: el sondeo del portal (5 s) no debe
+# rozar el timeout de conexión a la BD (evita parpadeos "caído/recuperado").
+_db_cache = {"ts": 0.0, "ok": False}
+
+
+def _db_available_cached(ttl: float = 5.0) -> bool:
+    now = time.monotonic()
+    if now - _db_cache["ts"] < ttl:
+        return _db_cache["ok"]
+    ok = db.available()
+    _db_cache["ts"] = now
+    _db_cache["ok"] = ok
+    return ok
+
 
 @router.get("/health")
 async def health():
-    db_ok = db.available()
+    db_ok = _db_available_cached()
     cron_ok = config.CRON_FILE.exists()
     nas_ok = files.nas_ready()
     status = "ok" if db_ok and cron_ok else "degraded"

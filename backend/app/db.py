@@ -201,6 +201,33 @@ def purge_old_checks():
         conn.execute("DELETE FROM checks WHERE ts < ?", (cutoff,))
 
 
+def recent_oks(per_service):
+    """Últimos `per_service` resultados ok por servicio activo (más nuevo primero).
+
+    Se usa para la histéresis: un solo fallo no debe marcar caída.
+    """
+    per_service = max(1, int(per_service))
+    with db() as conn:
+        rows = conn.execute(
+            """
+            SELECT slug, ok FROM (
+                SELECT s.slug AS slug, c.ok AS ok,
+                       ROW_NUMBER() OVER (PARTITION BY c.service_id ORDER BY c.id DESC) AS rn
+                FROM services s
+                JOIN checks c ON c.service_id = s.id
+                WHERE s.active = 1
+            )
+            WHERE rn <= ?
+            ORDER BY slug, rn
+            """,
+            (per_service,),
+        ).fetchall()
+    out = {}
+    for row in rows:
+        out.setdefault(row["slug"], []).append(bool(row["ok"]))
+    return out
+
+
 def latest_statuses():
     uptime_since = (
         datetime.now(timezone.utc) - timedelta(days=1)

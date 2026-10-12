@@ -21,6 +21,8 @@ AREAS = {
         "events": {
             "service.down": {"title": "Servicio caído", "level": "critical"},
             "service.recovered": {"title": "Servicio recuperado", "level": "info"},
+            "infra.down": {"title": "Infraestructura sin respuesta", "level": "critical"},
+            "infra.recovered": {"title": "Infraestructura recuperada", "level": "info"},
         },
     },
     "ups": {
