@@ -5,7 +5,8 @@
 #
 # Gestiona SOLO *.cortexdev.win: wildcard a las apps + overrides de la capa de
 # acceso (dnsmasq usa la coincidencia mas especifica: el host gana al wildcard).
-# Ademas PURGA de misc.dnsmasq_lines cualquier linea *.cortexdev.lan (Fase 3).
+# Ademas PURGA de misc.dnsmasq_lines cualquier linea *.cortexdev.lan (Fase 3) y
+# los overrides de Uptime Kuma (uptime/kuma), servicio retirado.
 #
 # Variables:
 #   PIHOLE     nombre del contenedor de Pi-hole (solo modo docker; autodetectado si se omite)
@@ -18,7 +19,7 @@ set -uo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ACCESS_IP="${ACCESS_IP:-192.168.0.49}"
 APPS_IP="${APPS_IP:-192.168.0.87}"
-HOSTS="${HOSTS:-index copias ups pihole proxmox backups pbs uptime kuma grafana netdata-services netdata-backups netdata-proxmox netdata-docker}"
+HOSTS="${HOSTS:-index copias ups pihole proxmox backups pbs grafana netdata-services netdata-backups netdata-proxmox netdata-docker}"
 PUB_DOMAIN="cortexdev.win"
 WILDCARD_PUB="address=/${PUB_DOMAIN}/${APPS_IP}"
 
@@ -78,6 +79,11 @@ fi
 lan_count="$(printf '%s\n' "$existing" | grep -c 'cortexdev\.lan' || true)"
 existing="$(printf '%s\n' "$existing" | grep -v 'cortexdev\.lan' || true)"
 [ "$lan_count" = "0" ] && ok "sin lineas .lan que purgar" || ok "purgando $lan_count linea(s) .lan"
+
+# Uptime Kuma retirado: descartar sus overrides si siguen presentes.
+kuma_count="$(printf '%s\n' "$existing" | grep -cE 'address=/(uptime|kuma)\.cortexdev\.win/' || true)"
+existing="$(printf '%s\n' "$existing" | grep -vE 'address=/(uptime|kuma)\.cortexdev\.win/' || true)"
+[ "$kuma_count" = "0" ] && ok "sin overrides de Uptime Kuma que purgar" || ok "purgando $kuma_count override(s) de Uptime Kuma"
 
 declare -A seen=()
 lines=()

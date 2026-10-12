@@ -7,7 +7,7 @@ services:
     # ella; sin tope, un contenedor puede empujar el swap al 100% y colgar el resto.
     mem_limit: 96m
     # host network: nginx bindea 80/443 directamente y alcanza Pi-hole (8443)
-    # y Netdata/Uptime por 127.0.0.1 en ubuntu-services.
+    # y Netdata por 127.0.0.1 en ubuntu-services.
     network_mode: host
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro

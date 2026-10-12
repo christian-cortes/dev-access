@@ -147,7 +147,7 @@ fi
 info "4/5 Verificando vhosts .win"
 code_app() { curl -sS -o /dev/null -w '%{http_code}' --resolve "$1:443:127.0.0.1" "https://$1/" 2>/dev/null || true; }
 for h in apps.cortexdev.win admin-portal-pacientes.cortexdev.win pma.cortexdev.win \
-         pihole.cortexdev.win proxmox.cortexdev.win uptime.cortexdev.win netdata-services.cortexdev.win; do
+         pihole.cortexdev.win proxmox.cortexdev.win netdata-services.cortexdev.win; do
   c="$(code_app "$h")"
   if [ -n "$c" ] && [ "$c" != "000" ]; then
     ok "$h -> $c"

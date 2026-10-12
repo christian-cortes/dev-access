@@ -1,7 +1,7 @@
 # cortexdev-access
 
 Capa de acceso de la infraestructura `*.cortexdev.win`: portal/índice y dashboards de
-infraestructura (Pi-hole, Proxmox, PBS, Uptime/Kuma, Netdata y Grafana). Vive en **ubuntu-services**
+infraestructura (Pi-hole, Proxmox, PBS, Netdata y Grafana). Vive en **ubuntu-services**
 (192.168.0.49), que está siempre encendida, para que reiniciar `ubuntu-docker` (192.168.0.87,
 donde corren las apps) no deje sin portal ni DNS.
 
@@ -13,7 +13,7 @@ donde corren las apps) no deje sin portal ni DNS.
 docker-compose.yml                 # nginx:stable + portal-api, network_mode host
 nginx/conf.d/
   index.conf                       # index.cortexdev.win  → portal/ + /api/
-  infra.conf                       # pihole, proxmox, backups/pbs, uptime/kuma, grafana, netdata-*
+  infra.conf                       # pihole, proxmox, backups/pbs, grafana, netdata-*
   snippets/                        # cuerpos compartidos y par TLS (tls-win.conf)
 portal/                            # portal (shells HTML + render.js, favicons, iconos)
 backend/                           # portal-api: FastAPI + SQLite (catalogo y estado)
@@ -129,8 +129,6 @@ address=/pihole.cortexdev.win/192.168.0.49
 address=/proxmox.cortexdev.win/192.168.0.49
 address=/backups.cortexdev.win/192.168.0.49
 address=/pbs.cortexdev.win/192.168.0.49
-address=/uptime.cortexdev.win/192.168.0.49
-address=/kuma.cortexdev.win/192.168.0.49
 address=/grafana.cortexdev.win/192.168.0.49
 address=/netdata-services.cortexdev.win/192.168.0.49
 address=/netdata-backups.cortexdev.win/192.168.0.49

@@ -164,7 +164,7 @@ if [ -n "$PIHOLE_KIND" ] && [ -x scripts/dns-overrides.sh ]; then
   scripts/dns-overrides.sh || true
 elif [ -n "$PIHOLE_KIND" ]; then
   bad "falta scripts/dns-overrides.sh; agrega a mano en misc.dnsmasq_lines:"
-  for h in index copias ups pihole proxmox backups pbs uptime kuma grafana netdata-services netdata-backups netdata-proxmox netdata-docker; do
+  for h in index copias ups pihole proxmox backups pbs grafana netdata-services netdata-backups netdata-proxmox netdata-docker; do
     printf '         address=/%s.cortexdev.win/192.168.0.49\n' "$h"
   done
   printf '       Conserva el wildcard: address=/cortexdev.win/192.168.0.87\n'

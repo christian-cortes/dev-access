@@ -11,7 +11,7 @@ settings:
 categories:
   - slug: infraestructura
     title: Infraestructura
-    description: Portainer, Proxmox VE, Proxmox Backup Server, Pi-hole, Uptime Kuma, Grafana, Netdata (uno por servidor) y el monitor UPS (APC).
+    description: Portainer, Proxmox VE, Proxmox Backup Server, Pi-hole, Grafana, Netdata (uno por servidor) y el monitor UPS (APC).
     url: /infraestructura.html
     note_header: Destino
     count_label: servicios
@@ -88,14 +88,6 @@ services:
     badge: false
     note: "192.168.0.49 &rarr; <code>/admin/</code> (DNS de la LAN)"
     sort: 40
-  - slug: uptime
-    name: Uptime Kuma
-    category: infraestructura
-    url: https://uptime.cortexdev.win
-    tech: [uptime-kuma]
-    badge: false
-    note: '192.168.0.49:3001 &rarr; <code>/dashboard</code> &middot; alias <a href="https://kuma.cortexdev.win" target="_blank" rel="noopener">kuma</a>'
-    sort: 50
   - slug: grafana
     name: Grafana
     category: infraestructura

@@ -213,7 +213,7 @@ dig_answer() {
 
 info "DNS (Pi-hole local, solo .win)"
 if command -v dig >/dev/null; then
-  for h in index copias ups pihole proxmox backups pbs uptime kuma grafana netdata-services netdata-backups netdata-proxmox netdata-docker; do
+  for h in index copias ups pihole proxmox backups pbs grafana netdata-services netdata-backups netdata-proxmox netdata-docker; do
     r="$(dig_answer "$h.cortexdev.win")"
     if [ "$r" = "192.168.0.49" ]; then
       ok "$h.cortexdev.win -> 192.168.0.49"
