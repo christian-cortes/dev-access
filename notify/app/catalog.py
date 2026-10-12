@@ -3,9 +3,13 @@ from __future__ import annotations
 
 # level por defecto de cada evento; el emisor puede subirlo (nunca bajarlo).
 # `scoped`: el área admite activar/desactivar avisos por proyecto/tarea (slug).
+# `short`: nombre corto que precede al título de la notificación push.
+# `icon`: favicon del sitio (URL absoluta y pública) que muestra la notificación.
 AREAS = {
     "copias": {
         "title": "Copias de seguridad",
+        "short": "Copias Cortex",
+        "icon": "https://copias.cortexdev.win/favicon.png",
         "scoped": True,
         "events": {
             "incident.open": {"title": "Incidente abierto", "level": "critical"},
@@ -17,6 +21,8 @@ AREAS = {
     },
     "index": {
         "title": "Portal (estado de servicios)",
+        "short": "Portal Cortex",
+        "icon": "https://index.cortexdev.win/favicons/cortexdev-32.png",
         "scoped": True,
         "events": {
             "service.down": {"title": "Servicio caído", "level": "critical"},
@@ -27,6 +33,8 @@ AREAS = {
     },
     "ups": {
         "title": "UPS (energía)",
+        "short": "UPS Cortex",
+        "icon": "https://ups.cortexdev.win/favicon.png",
         "scoped": False,
         "events": {
             "ups.on_battery": {"title": "Corte de energía", "level": "warning"},
@@ -38,6 +46,8 @@ AREAS = {
     },
     "manager": {
         "title": "Manager (proyectos y despliegues)",
+        "short": "Manager Cortex",
+        "icon": "https://manager.cortexdev.win/favicon.png",
         "scoped": True,
         "events": {
             "deploy.failed": {"title": "Despliegue fallido", "level": "critical"},
@@ -57,6 +67,8 @@ def areas() -> list[dict]:
         {
             "slug": slug,
             "title": area["title"],
+            "short": area.get("short") or area["title"],
+            "icon": area.get("icon") or "",
             "scoped": bool(area.get("scoped")),
             "events": [
                 {"key": key, "title": meta["title"], "level": meta["level"]}
@@ -65,6 +77,17 @@ def areas() -> list[dict]:
         }
         for slug, area in AREAS.items()
     ]
+
+
+def area_short(area: str) -> str:
+    """Nombre corto del área para el título de las notificaciones."""
+    block = AREAS.get(area) or {}
+    return block.get("short") or block.get("title") or area
+
+
+def area_icon(area: str) -> str:
+    """URL absoluta del favicon del sitio (pública) para la notificación."""
+    return (AREAS.get(area) or {}).get("icon") or ""
 
 
 def event_meta(area: str, event_key: str) -> dict | None:

@@ -67,13 +67,15 @@ def _is_invalid_token(error: str) -> bool:
     return any(marker in low for marker in _INVALID_TOKEN_MARKERS)
 
 
-def send_fcm(token: str, title: str, body: str, url: str, level: str) -> tuple[str, str]:
+def send_fcm(token: str, title: str, body: str, url: str, level: str,
+             icon: str = "") -> tuple[str, str]:
     """Devuelve (status, error). status ∈ {sent, invalid, skipped, error}."""
     app = _fcm_app()
     if app is None:
         return "skipped", "FCM no configurado"
     webpush = messaging.WebpushConfig(
-        notification=messaging.WebpushNotification(title=title, body=body, icon="/favicon.png"),
+        notification=messaging.WebpushNotification(
+            title=title, body=body, icon=icon or None),
         fcm_options=messaging.WebpushFCMOptions(link=url) if url else None,
     )
     message = messaging.Message(
@@ -156,6 +158,10 @@ def dispatch(event: dict) -> dict:
     url = event.get("url") or ""
     event_id = event["id"]
     scope = event.get("scope") or ""
+    # Nombre corto del sitio + su favicon, para identificar el origen del aviso.
+    label = catalog.area_short(area)
+    icon = catalog.area_icon(area)
+    push_title = f"{label}: {title}"
     stats = {"fcm_sent": 0, "fcm_skipped": 0, "email": "skipped"}
 
     scope_cache: dict[str, dict] = {}
@@ -178,7 +184,7 @@ def dispatch(event: dict) -> dict:
         if _in_quiet(prefs.get("quiet") or {}):
             stats["fcm_skipped"] += 1
             continue
-        status, error = send_fcm(sub["token"], title, body, url, level)
+        status, error = send_fcm(sub["token"], push_title, body, url, level, icon)
         db.record_delivery(event_id, sub["id"], "fcm", sub["token"][:24], status, error)
         if status == "invalid":
             db.delete_token(sub["token"])
@@ -186,7 +192,7 @@ def dispatch(event: dict) -> dict:
             stats["fcm_sent"] += 1
 
     if mail_ready() and catalog.meets_min(level, "warning"):
-        subject = f"[{area}] {title}"
+        subject = f"[{label}] {title}"
         text = body + (f"\n\n{url}" if url else "")
         status, error = send_email(subject, text)
         db.record_delivery(event_id, "", "email", ", ".join(config.MAIL_TO), status, error)
@@ -197,13 +203,15 @@ def dispatch(event: dict) -> dict:
 
 def dispatch_test(username: str, area: str) -> dict:
     """Envía una notificación de prueba a las suscripciones del usuario en el área."""
+    label = catalog.area_short(area)
+    icon = catalog.area_icon(area)
     sent = 0
     for sub in db.user_subscriptions(username):
         if sub["area"] != area:
             continue
         status, error = send_fcm(
-            sub["token"], "Notificación de prueba",
-            f"Prueba del área «{area}».", "", "info",
+            sub["token"], f"{label}: Notificación de prueba",
+            f"Prueba del área «{area}».", "", "info", icon,
         )
         if status == "invalid":
             db.delete_token(sub["token"])

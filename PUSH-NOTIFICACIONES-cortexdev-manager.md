@@ -43,6 +43,8 @@ AREAS = {
     # ... index, copias, ups ...
     "manager": {
         "title": "Manager (proyectos y despliegues)",
+        "short": "Manager Cortex",  # nombre corto que precede al título de la notificación
+        "icon": "https://manager.cortexdev.win/favicon.png",  # favicon del sitio (público)
         "scoped": True,   # ponlo False si no quieres filtrado por proyecto/contenedor
         "events": {
             "deploy.failed":    {"title": "Despliegue fallido",     "level": "critical"},
@@ -54,6 +56,12 @@ AREAS = {
     },
 }
 ```
+
+Cada área debe declarar `short` (nombre corto) e `icon` (favicon del sitio, **URL
+absoluta y pública**): notify antepone ese nombre al título
+(`"Manager Cortex: Despliegue fallido"`) y usa el favicon como icono de la
+notificación. El icono se descarga sin sesión, así que su ruta debe servirse
+pública (como `location = /favicon.png` en `nginx/conf.d/manager.conf`).
 
 Rebuild/reinicio del servicio notify:
 
