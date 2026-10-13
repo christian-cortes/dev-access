@@ -11,11 +11,11 @@ settings:
 categories:
   - slug: infraestructura
     title: Infraestructura
-    description: Portainer, Proxmox VE, Proxmox Backup Server, Pi-hole, Grafana, Netdata (uno por servidor) y el monitor UPS (APC).
+    description: Proxmox VE, Proxmox Backup Server, Pi-hole, Grafana, Netdata (uno por servidor) y el monitor UPS (APC).
     url: /infraestructura.html
     note_header: Destino
     count_label: servicios
-    card_tech: [server, portainer, proxmox]
+    card_tech: [server, proxmox]
   - slug: laravel
     title: Laravel
     description: Aplicaciones PHP 8.3 servidas por <code>laravel_web</code> (FPM).
@@ -47,14 +47,6 @@ categories:
 
 services:
   # ----------------------------- Infraestructura ---------------------------
-  - slug: portainer
-    name: Portainer CE
-    category: infraestructura
-    url: https://portainer.cortexdev.win
-    tech: [portainer]
-    badge: false
-    note: "<code>portainer:9000</code> (docker)"
-    sort: 10
   - slug: proxmox
     name: Proxmox VE
     category: infraestructura

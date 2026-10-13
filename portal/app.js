@@ -46,7 +46,7 @@
     laravel: 'Laravel', codeigniter: 'CodeIgniter', php: 'PHP', angular: 'Angular',
     react: 'React', python: 'Python', mysql: 'MySQL', docker: 'Docker',
     proxmox: 'Proxmox', pihole: 'Pi-hole', netdata: 'Netdata', nginx: 'Nginx',
-    portainer: 'Portainer', phpmyadmin: 'phpMyAdmin', powerbi: 'Power BI',
+    phpmyadmin: 'phpMyAdmin', powerbi: 'Power BI',
     certificate: 'Certificado local',
     server: 'Infraestructura', linux: 'Linux', grafana: 'Grafana'
   };
