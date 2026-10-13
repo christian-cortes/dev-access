@@ -108,7 +108,7 @@ services:
     note: "Portal de copias NeoCortex (backupcsr, 192.168.0.49) &middot; distinto de PBS"
     sort: 56
   - slug: manager
-    name: cortexdev-manager
+    name: Docker Manager
     category: infraestructura
     url: https://manager.cortexdev.win
     probe_url: https://manager.cortexdev.win/healthz
