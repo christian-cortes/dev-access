@@ -45,8 +45,8 @@ AREAS = {
         },
     },
     "manager": {
-        "title": "Manager (proyectos y despliegues)",
-        "short": "Manager Cortex",
+        "title": "Docker Manager",
+        "short": "Docker Manager",
         "icon": "https://manager.cortexdev.win/favicon.png?v=2",
         "scoped": True,
         "events": {
