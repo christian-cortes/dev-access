@@ -179,9 +179,18 @@
     document.querySelectorAll('table.links[data-category]').forEach(function (table) {
       var tbody = table.querySelector('tbody');
       if (!tbody) return;
+      // Etiquetas de columna para el modo tarjeta en móvil (ver style.css):
+      // se copian del <thead> de cada tabla para no fijarlas a mano.
+      var labels = Array.prototype.map.call(table.querySelectorAll('thead th'), function (th) {
+        return (th.textContent || '').trim();
+      });
       tbody.innerHTML = '';
       byCategory(table.getAttribute('data-category')).forEach(function (s) {
-        tbody.appendChild(serviceRow(s));
+        var tr = serviceRow(s);
+        Array.prototype.forEach.call(tr.children, function (td, i) {
+          if (labels[i]) td.setAttribute('data-th', labels[i]);
+        });
+        tbody.appendChild(tr);
       });
     });
   }

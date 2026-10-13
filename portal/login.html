@@ -7,139 +7,127 @@
 	<link rel="icon" type="image/png" sizes="32x32" href="/favicons/cortexdev-32.png">
 	<link rel="apple-touch-icon" sizes="180x180" href="/favicons/cortexdev-180.png">
 	<title>CortexDev · Acceso</title>
+	<!-- Página pública (sin sesión): el CSS/JS externo está tras SSO, así que la
+	     apariencia va inline con los tokens del sistema (design_portainer.md). -->
 	<style>
 		:root {
 			color-scheme: dark;
+			--mgr-bg: #202124;
+			--mgr-surface: #26272b;
+			--mgr-border: #3b3d44;
+			--mgr-text: #eff1f4;
+			--mgr-muted: #98a2b3;
+			--mgr-primary: #0086c9;
+			--mgr-primary-strong: #0ba5ec;
+			--mgr-danger: #f97066;
+			--mgr-radius: 8px;
+			--mgr-radius-lg: 10px;
+			--mgr-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -20px rgba(0, 0, 0, .8);
 		}
 
-		* {
-			box-sizing: border-box;
-		}
+		* { box-sizing: border-box; }
 
 		body {
 			margin: 0;
 			min-height: 100vh;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			padding: 1.5rem;
-			font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-			background: radial-gradient(1200px 600px at 50% -10%, #1e293b, #0b1120 60%);
-			color: #e2e8f0;
-		}
-
-		.card {
-			width: 100%;
-			max-width: 380px;
-			background: rgba(15, 23, 42, .92);
-			border: 1px solid #1e293b;
-			border-radius: 16px;
-			padding: 2rem;
-			box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
-		}
-
-		.brand {
-			display: flex;
-			align-items: center;
-			gap: .85rem;
-			margin-bottom: 1.5rem;
-		}
-
-		.brand .dot {
-			width: 42px;
-			height: 42px;
-			border-radius: 12px;
-			flex: none;
-			background: linear-gradient(135deg, #38bdf8, #6366f1);
 			display: grid;
 			place-items: center;
-			font-weight: 700;
-			font-size: 1.05rem;
-			color: #04121f;
+			padding: 24px;
+			font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+			font-size: 13.5px;
+			line-height: 1.5;
+			background: var(--mgr-bg);
+			color: var(--mgr-text);
 		}
 
-		.brand h1 {
-			margin: 0;
-			font-size: 1.15rem;
+		.login-card {
+			width: 100%;
+			max-width: 400px;
+			padding: 1.75rem;
+			background: var(--mgr-surface);
+			border: 1px solid var(--mgr-border);
+			border-radius: var(--mgr-radius-lg);
+			box-shadow: var(--mgr-shadow);
 		}
 
-		.brand p {
-			margin: .15rem 0 0;
-			font-size: .8rem;
-			color: #94a3b8;
+		.login-brand {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			margin-bottom: 1.25rem;
 		}
 
-		label {
-			display: block;
-			font-size: .82rem;
-			color: #cbd5e1;
-			margin: 0 0 .35rem;
+		.login-brand .logo {
+			width: 42px;
+			height: 42px;
+			flex: 0 0 auto;
+			border-radius: var(--mgr-radius);
+			overflow: hidden;
 		}
+
+		.login-brand .logo img { width: 100%; height: 100%; display: block; object-fit: cover; }
+		.login-brand h1 { margin: 0; font-size: 1.1rem; }
+		.login-brand p { margin: .15rem 0 0; font-size: .8rem; color: var(--mgr-muted); }
+
+		label { display: block; font-size: .82rem; color: var(--mgr-muted); margin: 0 0 .35rem; }
 
 		input {
 			width: 100%;
-			padding: .65rem .75rem;
+			padding: .6rem .75rem;
 			margin-bottom: 1rem;
-			border-radius: 10px;
-			border: 1px solid #334155;
-			background: #0b1120;
-			color: #e2e8f0;
+			border-radius: var(--mgr-radius);
+			border: 1px solid var(--mgr-border);
+			background: var(--mgr-bg);
+			color: var(--mgr-text);
 			font-size: 1rem;
 		}
 
 		input:focus {
-			outline: 2px solid #38bdf8;
-			border-color: #38bdf8;
+			outline: 2px solid var(--mgr-primary);
+			border-color: var(--mgr-primary);
 		}
 
 		button {
 			width: 100%;
-			padding: .7rem;
+			padding: .65rem;
 			border: 0;
-			border-radius: 10px;
-			background: linear-gradient(135deg, #38bdf8, #6366f1);
-			color: #04121f;
+			border-radius: var(--mgr-radius);
+			background: var(--mgr-primary);
+			color: #ffffff;
 			font-weight: 600;
 			font-size: 1rem;
 			cursor: pointer;
 		}
 
-		button:disabled {
-			opacity: .6;
-			cursor: default;
-		}
+		button:hover { background: var(--mgr-primary-strong); }
+		button:disabled { opacity: .6; cursor: default; }
 
-		.error {
+		.login-error {
 			display: none;
 			margin: 0 0 1rem;
 			padding: .6rem .75rem;
-			border-radius: 10px;
-			background: rgba(248, 113, 113, .14);
-			border: 1px solid rgba(248, 113, 113, .4);
-			color: #fca5a5;
+			border-radius: var(--mgr-radius);
+			background: rgba(249, 112, 102, .14);
+			border: 1px solid rgba(249, 112, 102, .4);
+			color: var(--mgr-danger);
 			font-size: .85rem;
 		}
 
-		.foot {
-			margin-top: 1.25rem;
-			text-align: center;
-			font-size: .76rem;
-			color: #64748b;
-		}
+		.login-foot { margin-top: 1.25rem; text-align: center; font-size: .76rem; color: var(--mgr-muted); }
 	</style>
 </head>
 
 <body>
-	<div class="card">
-		<div class="brand">
-			<img src="/favicons/cortexdev-180.png" alt="CortexDev" width="42" height="42">
+	<div class="login-card">
+		<div class="login-brand">
+			<div class="logo"><img src="/favicons/cortexdev-180.png" alt="CortexDev" width="42" height="42"></div>
 			<div>
 				<h1>CortexDev · Acceso</h1>
 				<p>index.cortexdev.win</p>
 			</div>
 		</div>
 
-		<div class="error" id="login-error"></div>
+		<div class="login-error" id="login-error"></div>
 
 		<form id="login-form">
 			<label for="username">Usuario</label>
@@ -149,7 +137,7 @@
 			<button type="submit" id="login-submit">Entrar</button>
 		</form>
 
-		<p class="foot">Acceso restringido · ubuntu-services</p>
+		<p class="login-foot">Acceso restringido · ubuntu-services</p>
 	</div>
 
 	<script>
