@@ -69,7 +69,13 @@ def _is_invalid_token(error: str) -> bool:
 
 def send_fcm(token: str, title: str, body: str, url: str, level: str,
              icon: str = "") -> tuple[str, str]:
-    """Devuelve (status, error). status ∈ {sent, invalid, skipped, error}."""
+    """Devuelve (status, error). status ∈ {sent, invalid, skipped, error}.
+
+    El payload incluye `data` con title/body/icon/url además de `notification`:
+    así el service worker del sitio puede construir la notificación él mismo
+    (título/icono/enlace garantizados) en vez de depender del auto-display del
+    SDK de FCM, que en varios navegadores usa el origen del sitio como título.
+    """
     app = _fcm_app()
     if app is None:
         return "skipped", "FCM no configurado"
@@ -81,7 +87,13 @@ def send_fcm(token: str, title: str, body: str, url: str, level: str,
     message = messaging.Message(
         token=token,
         notification=messaging.Notification(title=title, body=body),
-        data={"url": url or "", "level": level or ""},
+        data={
+            "title": title or "",
+            "body": body or "",
+            "icon": icon or "",
+            "url": url or "",
+            "level": level or "",
+        },
         webpush=webpush,
     )
     try:

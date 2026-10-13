@@ -44,7 +44,7 @@ AREAS = {
     "manager": {
         "title": "Manager (proyectos y despliegues)",
         "short": "Manager Cortex",  # nombre corto que precede al título de la notificación
-        "icon": "https://manager.cortexdev.win/favicon.png",  # favicon del sitio (público)
+        "icon": "https://manager.cortexdev.win/favicon.png?v=2",  # favicon del sitio (público; ?v= cache-busting)
         "scoped": True,   # ponlo False si no quieres filtrado por proyecto/contenedor
         "events": {
             "deploy.failed":    {"title": "Despliegue fallido",     "level": "critical"},

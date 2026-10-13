@@ -9,7 +9,7 @@ AREAS = {
     "copias": {
         "title": "Copias de seguridad",
         "short": "Copias Cortex",
-        "icon": "https://copias.cortexdev.win/favicon.png",
+        "icon": "https://copias.cortexdev.win/favicon.png?v=2",
         "scoped": True,
         "events": {
             "incident.open": {"title": "Incidente abierto", "level": "critical"},
@@ -22,7 +22,7 @@ AREAS = {
     "index": {
         "title": "Portal (estado de servicios)",
         "short": "Portal Cortex",
-        "icon": "https://index.cortexdev.win/favicons/cortexdev-32.png",
+        "icon": "https://index.cortexdev.win/favicons/cortexdev-32.png?v=2",
         "scoped": True,
         "events": {
             "service.down": {"title": "Servicio caído", "level": "critical"},
@@ -34,7 +34,7 @@ AREAS = {
     "ups": {
         "title": "UPS (energía)",
         "short": "UPS Cortex",
-        "icon": "https://ups.cortexdev.win/favicon.png",
+        "icon": "https://ups.cortexdev.win/favicon.png?v=2",
         "scoped": False,
         "events": {
             "ups.on_battery": {"title": "Corte de energía", "level": "warning"},
@@ -47,7 +47,7 @@ AREAS = {
     "manager": {
         "title": "Manager (proyectos y despliegues)",
         "short": "Manager Cortex",
-        "icon": "https://manager.cortexdev.win/favicon.png",
+        "icon": "https://manager.cortexdev.win/favicon.png?v=2",
         "scoped": True,
         "events": {
             "deploy.failed": {"title": "Despliegue fallido", "level": "critical"},

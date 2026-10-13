@@ -295,7 +295,19 @@
     try {
       var stored = readStored();
       if (state.token) {
-        await window.firebase.messaging().deleteToken();
+        /* El SDK solo se carga en enable(); tras recargar la página podría no
+           estar, así que lo cargamos (best-effort) antes de borrar el token. Si
+           falla, seguimos: lo importante es limpiar la suscripción y el estado. */
+        try {
+          if (!window.firebase) {
+            await loadScript(FIREBASE_SDK + 'firebase-app-compat.js');
+            await loadScript(FIREBASE_SDK + 'firebase-messaging-compat.js');
+          }
+          if (state.config && state.config.firebase && !window.firebase.apps.length) {
+            window.firebase.initializeApp(state.config.firebase);
+          }
+          await window.firebase.messaging().deleteToken();
+        } catch (e) { /* sin SDK/red: continuamos con la limpieza local */ }
       }
       if (stored && stored.id) {
         await api('/unsubscribe', {

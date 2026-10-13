@@ -1,37 +1,36 @@
-/* Service worker de FCM (Firebase Cloud Messaging) para CortexDev.
- * No cachea recursos: solo inicializa Firebase para que el navegador muestre
- * las notificaciones en segundo plano (el servidor envía payload `notification`).
+/* Service worker de notificaciones push de CortexDev (FCM web).
  *
- * El SDK se carga de forma SÍNCRONA (importScripts a nivel superior) y la config
- * se lee de /api/push/fcm-config, que es PÚBLICO: el SW no debe depender de un
- * endpoint con login (si falla, quedaría inerte y no mostraría nada). */
+ * Construye la notificación a partir del payload que envía el servicio notify
+ * (title/body/icon/url en `data`, con `notification` como respaldo). No usa el
+ * SDK de Firebase en segundo plano: así el título y el favicon son los del
+ * sitio, en vez de que el auto-display del SDK use el origen como título.
+ * El token FCM lo sigue obteniendo la página (push-client.js).
+ */
 self.addEventListener('install', function () { self.skipWaiting(); });
 self.addEventListener('activate', function (event) { event.waitUntil(self.clients.claim()); });
 
-var SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+self.addEventListener('push', function (event) {
+  var payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch (err) { payload = {}; }
+  var data = payload.data || {};
+  var note = payload.notification || {};
+  var title = data.title || note.title || 'CortexDev';
+  var options = {
+    body: data.body || note.body || '',
+    data: { url: data.url || (payload.fcmOptions && payload.fcmOptions.link) || '/' }
+  };
+  var icon = data.icon || note.icon || '';
+  if (icon) options.icon = icon;
+  event.waitUntil(self.registration.showNotification(title, options));
+});
 
-try {
-  importScripts(SDK + 'firebase-app-compat.js');
-  importScripts(SDK + 'firebase-messaging-compat.js');
-} catch (err) {
-  console.error('[fcm-sw] no se pudo cargar el SDK de Firebase:', err);
-}
-
-fetch('/api/push/fcm-config', { credentials: 'same-origin' })
-  .then(function (res) { return res.ok ? res.json() : null; })
-  .then(function (cfg) {
-    if (!cfg || !cfg.firebase || !cfg.firebase.apiKey) {
-      console.error('[fcm-sw] configuración FCM no disponible:', cfg);
-      return;
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  var url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].url === url && 'focus' in list[i]) return list[i].focus();
     }
-    if (typeof firebase === 'undefined' || !firebase.apps) {
-      console.error('[fcm-sw] SDK de Firebase no cargado');
-      return;
-    }
-    if (!firebase.apps.length) firebase.initializeApp(cfg.firebase);
-    firebase.messaging();
-    console.info('[fcm-sw] Firebase Messaging inicializado');
-  })
-  .catch(function (err) {
-    console.error('[fcm-sw] error inicializando FCM:', err);
-  });
+    return self.clients.openWindow ? self.clients.openWindow(url) : undefined;
+  }));
+});
