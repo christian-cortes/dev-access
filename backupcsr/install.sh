@@ -52,7 +52,9 @@ fi
 
 echo "== 2/7 Directorios =="
 mkdir -p "$OPT_DIR/lib" "$OPT_DIR/jobs" "$OPT_DIR/tools" "$ETC_DIR/keys" "$ETC_DIR/keys-src" \
-	"$LOG_DIR" "$NAS_MOUNT"
+	"$LOG_DIR" "$NAS_MOUNT" "$ETC_DIR/jobs.d" "$ETC_DIR/jobs-backups"
+# Overlay del portal (tareas creadas desde la web) y respaldos de scripts: 0700.
+chmod 0700 "$ETC_DIR/jobs.d" "$ETC_DIR/jobs-backups" 2>/dev/null || true
 
 echo "== 3/7 Scripts =="
 install -m 0644 "$SRC_DIR/lib/common.sh" "$OPT_DIR/lib/common.sh"
@@ -107,8 +109,42 @@ install_secret() {
 		echo "$ETC_DIR/$name instalado desde conf/$name"
 	fi
 }
-install_secret credentials.env
 install_secret nas.creds
+
+# credentials.env puede contener grupos añadidos por el portal web (crear tareas). En
+# vez de sobrescribirlo entero (lo que rompería esas tareas tras un reinstall), se
+# FUSIONA: se conservan las líneas existentes y se añaden solo las claves del repo que
+# falten. Si no existía, se instala tal cual.
+merge_credentials() {
+	local src="$1" dst="$ETC_DIR/credentials.env"
+	[ -e "$src" ] || return 0
+	if [ ! -e "$dst" ]; then
+		install -m 0600 "$src" "$dst"
+		sed -i 's/\r$//' "$dst"
+		chown "$RUN_USER" "$dst" 2>/dev/null || true
+		chmod 600 "$dst"
+		echo "credentials.env instalado"
+		return 0
+	fi
+	local line key
+	while IFS= read -r line; do
+		case "$line" in
+			'#'*|'') continue ;;
+			*=*) key="${line%%=*}" ;;
+			*) continue ;;
+		esac
+		key="${key#export }"
+		if grep -qE "^[[:space:]]*(export[[:space:]]+)?${key}=" "$dst"; then
+			continue
+		fi
+		printf '%s\n' "$line" >>"$dst"
+	done <"$src"
+	chmod 600 "$dst"
+	echo "credentials.env fusionado (se conservan los grupos añadidos por el portal)"
+}
+CRED_SRC="$SRC_DIR/conf/credentials.env"
+[ -e "$CRED_SRC" ] || CRED_SRC="$SRC_DIR/conf/credentials.env.example"
+merge_credentials "$CRED_SRC"
 
 echo "== 5/7 Llaves SSH =="
 # Las llaves no se versionan. Opciones:

@@ -113,6 +113,21 @@ find "$WEB_DIR/app" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/
 # Restos del frontend monolítico anterior (el nuevo vive en static/js/).
 rm -f "$WEB_DIR/static/app.js" "$WEB_DIR/static/api.js"
 
+echo "== 2b/6 Catálogo de tareas creadas desde el portal =="
+# Overlay durable (sobrevive a este install, que sobrescribe web/jobs.yml) donde el
+# portal guarda las tareas nuevas, y respaldos de scripts al regenerar/eliminar.
+ETC_ROOT="$(dirname "$ENV_FILE")"
+mkdir -p "$ETC_ROOT/jobs.d" "$ETC_ROOT/jobs-backups"
+chmod 0700 "$ETC_ROOT/jobs.d" "$ETC_ROOT/jobs-backups"
+# Las credenciales de los orígenes las crea backupcsr/install.sh; si el portal se
+# instala antes, se deja un archivo vacío 0600 para no bloquear la creación de tareas.
+if [ ! -f "$ETC_ROOT/credentials.env" ]; then
+	: >"$ETC_ROOT/credentials.env"
+	chmod 0600 "$ETC_ROOT/credentials.env"
+	echo "creado $ETC_ROOT/credentials.env vacío (0600)"
+fi
+echo "overlay del portal: $ETC_ROOT/jobs.d"
+
 echo "== 3/6 Entorno virtual y dependencias =="
 if [ ! -x "$WEB_DIR/venv/bin/python" ]; then
 	python3 -m venv "$WEB_DIR/venv"

@@ -338,9 +338,20 @@ function actionsCell(job, opts) {
   items.push(menuItem('log', 'fa-solid fa-file-lines', 'Ver log', true));
   items.push(menuItem('history', 'fa-solid fa-clock-rotate-left', 'Historial', true));
   items.push(menuItem('files', 'fa-solid fa-folder-open', 'Archivos', true));
-  items.push(menuItem('ficha', 'fa-solid fa-id-card', 'Ficha', true));
-  items.push(menuItem('schedule', 'fa-solid fa-calendar-days', 'Horario', opts.canManage,
-    opts.canManage ? 'Editar horario' : 'Requiere admin y BACKUP_MANAGE_CRON=1'));
+  const portalManaged = job.managed_by === 'portal' && opts.manageJobs;
+  if (portalManaged) {
+    // Un único editor autoritativo para las tareas del portal: evita que Ficha/Horario
+    // (PATCH parcial) y Editar definición (PUT) desincronicen overlay, script y cron.
+    items.push(el('li', {}, [el('hr', { class: 'dropdown-divider' })]));
+    items.push(menuItem('edit-def', 'fa-solid fa-sliders', 'Editar definición', idle,
+      idle ? 'Rutas, credenciales y script' : 'Requiere tarea detenida'));
+    items.push(menuItem('delete', 'fa-solid fa-trash', 'Eliminar tarea', idle,
+      idle ? 'Borra script, catálogo y cron (conserva histórico)' : 'Requiere tarea detenida'));
+  } else {
+    items.push(menuItem('ficha', 'fa-solid fa-id-card', 'Ficha', true));
+    items.push(menuItem('schedule', 'fa-solid fa-calendar-days', 'Horario', opts.canManage,
+      opts.canManage ? 'Editar horario' : 'Requiere admin y BACKUP_MANAGE_CRON=1'));
+  }
   items.push(menuItem('toggle', job.enabled ? 'fa-solid fa-toggle-off' : 'fa-solid fa-toggle-on',
     job.enabled ? 'Deshabilitar' : 'Habilitar', opts.canManage && idle,
     opts.canManage ? 'Habilitar o deshabilitar la tarea' : 'Requiere admin y BACKUP_MANAGE_CRON=1'));
@@ -483,6 +494,9 @@ function updateBulkBar() {
   const chosen = state.checked.size;
   const filtered = filteredRows(state);
 
+  const newButton = $('jobs-new');
+  if (newButton) newButton.hidden = !(isAdmin && state.manageJobs);
+
   const label = $('jobs-selected');
   if (label) {
     label.innerHTML = '';
@@ -592,6 +606,7 @@ function renderJobs(state) {
     const opts = {
       isAdmin: !!(state.user && state.user.role === 'admin'),
       canManage: !!(state.user && state.user.role === 'admin') && !!state.manageCron,
+      manageJobs: !!(state.user && state.user.role === 'admin') && !!state.manageJobs,
       checked: state.checked,
       expanded: state.expanded,
     };
@@ -731,6 +746,20 @@ async function handleAction(action, slug) {
       ctxRef.openSchedule(job, 'general');
     } else if (action === 'schedule') {
       ctxRef.openSchedule(job, 'programacion');
+    } else if (action === 'edit-def') {
+      ctxRef.openEditJob(job);
+    } else if (action === 'delete') {
+      confirmDialog('Eliminar tarea',
+        'Eliminar "' + job.name + '"? Se borra el script, el catálogo y su línea de cron; '
+        + 'el histórico de ejecuciones se conserva.', async () => {
+          try {
+            await ctxRef.api.del('/jobs/' + slug);
+            toast('Tarea eliminada: ' + job.name, 'ok');
+            await ctxRef.refresh(true);
+          } catch (err) {
+            toast('Error: ' + err.message, 'err');
+          }
+        }, 'Eliminar', 'btn-danger');
     }
   } catch (err) {
     toast('Error: ' + err.message, 'err');
@@ -884,6 +913,8 @@ export const panel = {
     // descarta el autofill del navegador.
     const selectJob = $('chart-job');
     if (selectJob) selectJob.addEventListener('change', () => renderCharts(ctxRef.state));
+    const newButton = $('jobs-new');
+    if (newButton) newButton.addEventListener('click', () => ctxRef.openNewJob());
   },
   render(ctx) {
     ctxRef = ctx;

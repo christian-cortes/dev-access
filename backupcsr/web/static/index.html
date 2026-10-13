@@ -7,12 +7,12 @@
 	<title>CortexDev · Copias de seguridad</title>
 	<link rel="icon" type="image/png" href="/favicon.png?v=2">
 	<link rel="apple-touch-icon" href="/favicon.png?v=2">
-	<script src="/theme.js?v=2"></script>
+	<script src="/theme.js?v=3"></script>
 	<link rel="stylesheet" href="/vendor/bootstrap/bootstrap.min.css">
 	<link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
-	<link rel="stylesheet" href="/style.css?v=10">
+	<link rel="stylesheet" href="/style.css?v=11">
 	<script src="/vendor/bootstrap/bootstrap.bundle.min.js" defer></script>
-	<script type="module" src="/js/shell.js?v=14"></script>
+	<script type="module" src="/js/shell.js?v=15"></script>
 </head>
 
 <body>
@@ -48,7 +48,10 @@
 			<header class="app-topbar">
 				<button type="button" class="btn btn-sm btn-outline-secondary d-lg-none" id="sidebar-toggle"
 					aria-label="Menú"></button>
-				<nav class="breadcrumbs" id="breadcrumbs"></nav>
+				<nav class="page-title" id="page-title-box" aria-label="Página">
+					<strong id="page-title">Panel</strong>
+					<span class="page-updated" id="page-updated">—</span>
+				</nav>
 				<div class="topbar-actions">
 					<span class="conn-pill hide-sm" id="conn-db"><span class="dot"></span>MySQL</span>
 					<span class="conn-pill hide-sm" id="conn-nas"><span class="dot"></span>NAS</span>
@@ -120,6 +123,8 @@
 					<div class="d-flex align-items-center justify-content-between mb-2 gap-2 flex-wrap">
 						<h2 class="h6 mb-0">Copias programadas</h2>
 						<div class="d-flex align-items-center gap-2">
+							<button type="button" class="btn btn-sm btn-primary" id="jobs-new" hidden>
+								<i class="fa-solid fa-plus"></i><span>Nueva tarea</span></button>
 							<div class="input-group input-group-sm table-search">
 								<span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
 								<input id="jobs-search" class="form-control" name="jobs-filter" type="search" readonly
@@ -586,6 +591,226 @@
 		</div>
 	</div>
 
+
+	<div class="modal fade" id="newJobModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-lg modal-dialog-scrollable">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="newjob-title">Nueva tarea</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+				</div>
+				<div class="modal-body">
+					<input type="hidden" id="newjob-mode" value="create">
+					<ul class="nav nav-tabs mb-3" id="newjob-tabs" role="tablist">
+						<li class="nav-item" role="presentation">
+							<button class="nav-link active" id="newjob-general-btn" data-bs-toggle="tab"
+								data-bs-target="#newjob-general" type="button" role="tab"
+								aria-controls="newjob-general" aria-selected="true">General</button>
+						</li>
+						<li class="nav-item" role="presentation">
+							<button class="nav-link" id="newjob-rutas-btn" data-bs-toggle="tab"
+								data-bs-target="#newjob-rutas" type="button" role="tab"
+								aria-controls="newjob-rutas" aria-selected="false">Rutas</button>
+						</li>
+						<li class="nav-item" role="presentation">
+							<button class="nav-link" id="newjob-cred-btn" data-bs-toggle="tab"
+								data-bs-target="#newjob-cred" type="button" role="tab"
+								aria-controls="newjob-cred" aria-selected="false">Credenciales</button>
+						</li>
+						<li class="nav-item" role="presentation">
+							<button class="nav-link" id="newjob-prog-btn" data-bs-toggle="tab"
+								data-bs-target="#newjob-prog" type="button" role="tab"
+								aria-controls="newjob-prog" aria-selected="false">Programación</button>
+						</li>
+					</ul>
+					<div class="tab-content">
+						<div class="tab-pane fade show active" id="newjob-general" role="tabpanel"
+							aria-labelledby="newjob-general-btn">
+							<div class="row g-2">
+								<div class="col-12 col-md-6" id="newjob-base-row">
+									<label class="form-label small" for="newjob-base">Clonar desde</label>
+									<select class="form-select form-select-sm" id="newjob-base">
+										<option value="">— Desde cero —</option>
+									</select>
+									<div class="form-text" id="newjob-base-hint">Precarga tipo de origen y rutas de una tarea existente.</div>
+								</div>
+								<div class="col-6 col-md-3">
+									<label class="form-label small" for="newjob-slug">Slug</label>
+									<input class="form-control form-control-sm mono" id="newjob-slug" autocomplete="off">
+								</div>
+								<div class="col-6 col-md-3">
+									<label class="form-label small" for="newjob-sort">Orden</label>
+									<input type="number" min="0" max="9999" class="form-control form-control-sm mono" id="newjob-sort" value="100">
+								</div>
+								<div class="col-12 col-md-8">
+									<label class="form-label small" for="newjob-name">Nombre</label>
+									<input class="form-control form-control-sm" id="newjob-name" autocomplete="off">
+								</div>
+								<div class="col-6 col-md-4">
+									<label class="form-label small" for="newjob-origin-type">Tipo de origen</label>
+									<select class="form-select form-select-sm" id="newjob-origin-type">
+										<option value="ftp">FTP</option>
+										<option value="sftp">SFTP (llave)</option>
+										<option value="sftp_pass">SFTP (contraseña)</option>
+									</select>
+								</div>
+								<div class="col-12">
+									<label class="form-label small" for="newjob-description">Descripción</label>
+									<input class="form-control form-control-sm" id="newjob-description" autocomplete="off">
+								</div>
+								<div class="col-4 col-md-4">
+									<label class="form-label small" for="newjob-criticality">Criticidad</label>
+									<select class="form-select form-select-sm" id="newjob-criticality">
+										<option value="alta">Alta</option>
+										<option value="media" selected>Media</option>
+										<option value="baja">Baja</option>
+									</select>
+								</div>
+								<div class="col-4 col-md-4">
+									<label class="form-label small" for="newjob-retention">Retención (días)</label>
+									<input type="number" min="0" class="form-control form-control-sm mono" id="newjob-retention">
+								</div>
+								<div class="col-4 col-md-4">
+									<label class="form-label small" for="newjob-owner">Responsable</label>
+									<input class="form-control form-control-sm" id="newjob-owner" autocomplete="off">
+								</div>
+								<div class="col-12 col-md-6">
+									<label class="form-label small" for="newjob-tags">Etiquetas (separadas por comas)</label>
+									<input class="form-control form-control-sm" id="newjob-tags" autocomplete="off">
+								</div>
+								<div class="col-12 col-md-6">
+									<label class="form-label small" for="newjob-size-exclude">Exclusiones de tamaño</label>
+									<input class="form-control form-control-sm mono" id="newjob-size-exclude" autocomplete="off">
+								</div>
+								<div class="col-12">
+									<label class="form-label small" for="newjob-notes">Notas / observaciones</label>
+									<textarea class="form-control form-control-sm" id="newjob-notes" rows="2"></textarea>
+								</div>
+							</div>
+						</div>
+						<div class="tab-pane fade" id="newjob-rutas" role="tabpanel" aria-labelledby="newjob-rutas-btn">
+							<p class="small text-body-secondary mb-2">
+								Cada ruta espeja una carpeta del origen remoto a una carpeta dentro del NAS
+								(<span class="mono">/mnt/nas/&lt;destino&gt;</span>). Una tarea puede tener varias rutas.
+							</p>
+							<div id="newjob-routes"></div>
+							<button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="newjob-add-route">
+								<i class="fa-solid fa-plus"></i><span>Añadir ruta</span></button>
+							<div class="row g-2 mt-3">
+								<div class="col-12 col-md-8">
+									<label class="form-label small" for="newjob-exclusions">Exclusiones (glob, separadas por comas)</label>
+									<input class="form-control form-control-sm mono" id="newjob-exclusions" autocomplete="off"
+										placeholder="p. ej. temp/, sessions/, cache/">
+								</div>
+								<div class="col-12 col-md-4">
+									<label class="form-label small" for="newjob-gatewait">GATE_WAIT (s)</label>
+									<input type="number" min="0" class="form-control form-control-sm mono" id="newjob-gatewait"
+										placeholder="1800">
+								</div>
+							</div>
+						</div>
+						<div class="tab-pane fade" id="newjob-cred" role="tabpanel" aria-labelledby="newjob-cred-btn">
+							<div class="form-check mb-2">
+								<input class="form-check-input" type="radio" name="newjob-cred-mode" id="newjob-cred-reuse" value="reuse" checked>
+								<label class="form-check-label" for="newjob-cred-reuse">Reutilizar credenciales existentes</label>
+							</div>
+							<div class="mb-3" id="newjob-cred-reuse-box">
+								<label class="form-label small" for="newjob-cred-group">Grupo de credenciales</label>
+								<select class="form-select form-select-sm mono" id="newjob-cred-group"></select>
+							</div>
+							<div class="form-check mb-2">
+								<input class="form-check-input" type="radio" name="newjob-cred-mode" id="newjob-cred-new" value="new">
+								<label class="form-check-label" for="newjob-cred-new">Crear credenciales nuevas</label>
+							</div>
+							<div class="row g-2" id="newjob-cred-new-box" hidden>
+								<div class="col-6 col-md-3">
+									<label class="form-label small" for="newjob-cred-prefix">Prefijo</label>
+									<input class="form-control form-control-sm mono" id="newjob-cred-prefix" placeholder="ACME" autocomplete="off">
+								</div>
+								<div class="col-12 col-md-5">
+									<label class="form-label small" for="newjob-cred-host">Host</label>
+									<input class="form-control form-control-sm mono" id="newjob-cred-host" autocomplete="off">
+								</div>
+								<div class="col-6 col-md-2">
+									<label class="form-label small" for="newjob-cred-port">Puerto</label>
+									<input class="form-control form-control-sm mono" id="newjob-cred-port" value="22" autocomplete="off">
+								</div>
+								<div class="col-6 col-md-2">
+									<label class="form-label small" for="newjob-cred-user">Usuario</label>
+									<input class="form-control form-control-sm mono" id="newjob-cred-user" autocomplete="off">
+								</div>
+								<div class="col-12 col-md-6" id="newjob-cred-pass-row">
+									<label class="form-label small" for="newjob-cred-pass">Contraseña</label>
+									<input type="password" class="form-control form-control-sm" id="newjob-cred-pass" autocomplete="new-password">
+								</div>
+							</div>
+							<div class="row g-2 mt-1">
+								<div class="col-12 col-md-6" id="newjob-cred-key-row" hidden>
+									<label class="form-label small" for="newjob-cred-key">Llave (archivo en /etc/backupcsr/keys/)</label>
+									<input class="form-control form-control-sm mono" id="newjob-cred-key" autocomplete="off">
+								</div>
+							</div>
+							<div class="alert alert-warning small mt-3 mb-0">
+								Las claves se guardan en <code>/etc/backupcsr/credentials.env</code> (0600) y no se
+								muestran de vuelta. Los grupos existentes se reutilizan por su prefijo.
+							</div>
+						</div>
+						<div class="tab-pane fade" id="newjob-prog" role="tabpanel" aria-labelledby="newjob-prog-btn">
+							<div class="form-check form-switch mb-3">
+								<input class="form-check-input" type="checkbox" id="newjob-enabled">
+								<label class="form-check-label" for="newjob-enabled">Habilitada</label>
+							</div>
+							<div class="row g-2">
+								<div class="col-6 col-md-2">
+									<label class="form-label small" for="newjob-minute">Minuto</label>
+									<input class="form-control form-control-sm mono" id="newjob-minute" value="20">
+								</div>
+								<div class="col-6 col-md-3">
+									<label class="form-label small" for="newjob-hour">Hora</label>
+									<input class="form-control form-control-sm mono" id="newjob-hour" value="6-19">
+								</div>
+								<div class="col-4 col-md-2">
+									<label class="form-label small" for="newjob-dom">Día mes</label>
+									<input class="form-control form-control-sm mono" id="newjob-dom" value="*">
+								</div>
+								<div class="col-4 col-md-2">
+									<label class="form-label small" for="newjob-month">Mes</label>
+									<input class="form-control form-control-sm mono" id="newjob-month" value="*">
+								</div>
+								<div class="col-4 col-md-3">
+									<label class="form-label small" for="newjob-dow">Día semana</label>
+									<input class="form-control form-control-sm mono" id="newjob-dow" value="*">
+								</div>
+								<div class="col-12 col-md-6">
+									<label class="form-label small" for="newjob-lockfile">Lockfile</label>
+									<input class="form-control form-control-sm mono" id="newjob-lockfile">
+								</div>
+							</div>
+							<div class="mt-3">
+								<label class="form-label small mb-1">Próximas ejecuciones</label>
+								<ul class="mb-0 small mono" id="newjob-preview"></ul>
+							</div>
+						</div>
+					</div>
+					<details class="mt-3">
+						<summary class="small">Ver script que se instalará</summary>
+						<pre class="log mt-2 mb-0" id="newjob-script">—</pre>
+					</details>
+					<div class="alert alert-danger mt-3 mb-0" id="newjob-error" hidden></div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-outline-danger me-auto" id="newjob-delete" hidden>
+						<i class="fa-solid fa-trash"></i><span>Eliminar</span></button>
+					<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+						<i class="fa-solid fa-xmark"></i><span>Cancelar</span></button>
+					<button type="button" class="btn btn-outline-secondary" id="newjob-preview-btn">
+						<i class="fa-solid fa-eye"></i><span>Vista previa</span></button>
+					<button type="button" class="btn btn-primary" id="newjob-save">
+						<i class="fa-solid fa-floppy-disk"></i><span>Guardar</span></button>
+				</div>
+			</div>
+		</div>
+	</div>
 
 	<div class="modal fade" id="passwordModal" tabindex="-1" aria-hidden="true">
 		<div class="modal-dialog">

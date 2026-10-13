@@ -196,6 +196,36 @@ El **cron instalado** (`/etc/cron.d/backupcsr`) es la fuente de verdad del **est
   cd /opt/backupcsr/web && venv/bin/python -m app.cli adopt-cron             # aplicar
   ```
 
+## Crear tareas desde el portal
+
+Con `BACKUP_MANAGE_JOBS=1` (y rol `admin`) el Portal muestra **Nueva tarea**, que crea una
+tarea de copia completa: script en `/opt/backupcsr/jobs/<slug>.sh`, credenciales, catálogo,
+fila en la BD y (si `BACKUP_MANAGE_CRON=1`) su línea de cron. Se puede **partir de cero**
+(plantilla por tipo de origen) o **clonar** una tarea existente (precarga tipo de origen y
+rutas). El modal tiene pestañas **General**, **Rutas**, **Credenciales** y **Programación**,
+más una **vista previa** del script y de las próximas ejecuciones antes de guardar.
+
+- **Rutas**: una o varias parejas origen remoto → destino relativo al NAS (`/mnt/nas/<dest>`).
+  Exclusiones (glob) y `GATE_WAIT` opcionales.
+- **Credenciales**: se reutiliza un grupo existente por su prefijo (se listan los prefijos de
+  `/etc/backupcsr/credentials.env`, **sin mostrar valores**) o se crea uno nuevo
+  (`<PREFIJO>_HOST/_PORT/_USER/_PASS`, `0600`). La llave SFTP es un nombre de archivo bajo
+  `/etc/backupcsr/keys/` (no un secreto) y viaja en la definición.
+- **Sin `BACKUP_MANAGE_CRON=1`** la tarea se crea **deshabilitada** (sin horario); se habilita
+  al activar la gestión de cron.
+- Las tareas creadas por el portal viven en un **overlay durable**
+  `/etc/backupcsr/jobs.d/<slug>.yml` (sobrevive a `install.sh`, que sobrescribe
+  `/opt/backupcsr/web/jobs.yml`). `catalog.py` fusiona `jobs.yml` + el overlay, así que
+  `sync-jobs` no las deshabilita.
+- Se pueden **re-editar** (regenera script/overlay/cron) y **eliminar** (borra script, overlay
+  y línea de cron, deshabilita la fila de BD y **conserva el histórico**; las credenciales no
+  se borran solas porque pueden ser compartidas). Todo queda en la **Auditoría**
+  (`job-create`, `job-update`, `job-delete`).
+
+Endpoints: `POST /api/jobs`, `PUT /api/jobs/{slug}`, `DELETE /api/jobs/{slug}`,
+`POST /api/jobs/preview`, `GET /api/jobs/{slug}/definition`, `GET /api/credentials/groups`
+(admin; `POST`/`PUT`/`DELETE` exigen además `BACKUP_MANAGE_JOBS=1`).
+
 ## Alertas e incidentes
 
 Cada corrida se clasifica (`app/logs.py`) a partir del contrato de líneas del job
@@ -228,6 +258,9 @@ Todo bajo `/api/`, con sesión salvo `/api/health` y `/api/auth/login`.
   solo exige admin, `enabled`/cron/`lockfile` exigen `MANAGE_CRON`),
   `POST /api/jobs/{slug}/reset-schedule` (admin), `GET /api/jobs/{slug}/cron-preview` (admin),
   `GET /api/jobs/{slug}/script` (script real en solo lectura + `drift`)
+- `POST /api/jobs` / `PUT /api/jobs/{slug}` / `DELETE /api/jobs/{slug}` (admin +
+  `BACKUP_MANAGE_JOBS=1`), `POST /api/jobs/preview`, `GET /api/jobs/{slug}/definition`,
+  `GET /api/credentials/groups` (admin)
 - `GET /api/runs`, `GET /api/runs/{id}`, `GET /api/runs/{id}/log`,
   `GET /api/runs/export?format=csv|json` (filtros `job`, `status`, `desde`, `hasta`)
 - `GET /api/incidents` (incidentes abiertos + últimos resueltos)

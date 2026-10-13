@@ -5,12 +5,13 @@ import {
   $, el, icon, pill, fmtDate, fmtDuration, fmtGb, relTime, toast, confirmDialog,
   openModal, hideModal,
 } from './ui.js';
-import { panel } from './views/panel.js?v=14';
+import { panel } from './views/panel.js?v=15';
 import { history } from './views/history.js';
 import { files } from './views/files.js';
 import { schedule, openEditor } from './views/schedule.js';
 import { users } from './views/users.js';
 import { audit } from './views/audit.js';
+import { tasks, openNewJob, openEditJob } from './views/tasks.js?v=15';
 
 const VIEWS = [panel, history, files, schedule, users, audit];
 
@@ -19,6 +20,7 @@ const state = {
   jobs: [],
   summary: null,
   manageCron: false,
+  manageJobs: false,
   series: [],
   seriesLoaded: false,
   tab: 'panel',
@@ -60,6 +62,14 @@ const ctx = {
       canManage: isAdmin && !!state.manageCron,
       tab: tab || 'programacion',
     });
+  },
+  openNewJob: (base) => {
+    ensureMounted(tasks);
+    openNewJob(ctx, base);
+  },
+  openEditJob: (job) => {
+    ensureMounted(tasks);
+    openEditJob(ctx, job);
   },
   openPassword,
 };
@@ -128,6 +138,7 @@ function summarySignature(summary) {
 function jobsSignature(jobs) {
   return jobs.map((job) => [
     job.slug, job.status, job.status_detail, job.running ? 1 : 0, job.enabled ? 1 : 0,
+    job.managed_by || '',
     job.last_run && job.last_run.started_at, job.last_run && job.last_run.duration_s,
     job.next_run, job.size && job.size.bytes, job.size && job.size.pending ? 1 : 0,
     job.progress && job.progress.live ? 1 : 0, job.progress && job.progress.state,
@@ -157,6 +168,7 @@ async function loadAll(silent) {
       state.jobsSig = signature;
       state.loaded = true;
       state.manageCron = !!data.manage_cron;
+      state.manageJobs = !!data.manage_jobs;
     } else {
       errors.push({ endpoint: '/api/jobs', message: 'la respuesta no trae la lista de tareas' });
     }
@@ -428,6 +440,7 @@ function updateStatus() {
   if (sbNas) sbNas.className = 'dot ' + (nasOk ? 'ok' : 'off');
   setText('sb-nas-text', nas ? (nas.percent + '%') : (nasOk ? 'montado' : 'no montado'));
   setText('sb-updated', summary.generated_at ? 'actualizado ' + relTime(summary.generated_at) : '—');
+  setText('page-updated', summary.generated_at ? 'actualizado ' + relTime(summary.generated_at) : '—');
   renderAlerts();
 }
 
@@ -463,13 +476,9 @@ const TITLES = {
   programacion: 'Programación', usuarios: 'Usuarios', auditoria: 'Auditoría',
 };
 
-function renderBreadcrumb(view) {
-  const box = $('breadcrumbs');
-  if (!box) return;
-  box.innerHTML = '';
-  box.appendChild(el('span', { text: 'Copias' }));
-  box.appendChild(el('span', { text: '/' }));
-  box.appendChild(el('strong', { text: TITLES[view] || view }));
+function renderTitle(view) {
+  const node = $('page-title');
+  if (node) node.textContent = TITLES[view] || view;
 }
 
 function safeRender(view) {
@@ -503,7 +512,7 @@ function activate(name) {
   document.querySelectorAll('#sidebar-nav .nav-item').forEach((link) => {
     link.classList.toggle('active', link.getAttribute('data-view') === view.id);
   });
-  renderBreadcrumb(view.id);
+  renderTitle(view.id);
   ensureMounted(view);
   safeRender(view);
   refreshBanner();

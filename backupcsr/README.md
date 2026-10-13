@@ -382,6 +382,12 @@ Detalle (requisitos de MySQL, fases, API, seguridad y diagnóstico) en
 [`web/README.md`](web/README.md). El backend corre nativo por systemd (127.0.0.1:8089) y usa el
 mismo `flock` que cron; `validar-copias.sh` no cambia.
 
+Con `BACKUP_MANAGE_JOBS=1` el portal también **crea/edita/elimina tareas**: genera el script en
+`/opt/backupcsr/jobs`, las credenciales en `/etc/backupcsr/credentials.env`, la definición en el
+overlay durable `/etc/backupcsr/jobs.d/<slug>.yml` (sobrevive a `install.sh`) y la línea de cron
+(esta última exige además `BACKUP_MANAGE_CRON=1`). Se puede clonar una tarea existente o partir
+de cero; ver [`web/README.md`](web/README.md#crear-tareas-desde-el-portal).
+
 ## Monitoreo continuo
 
 ```cron

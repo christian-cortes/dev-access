@@ -29,6 +29,14 @@ LOG_DIR = Path(os.environ.get("BACKUP_LOG", "/var/log/backupcsr"))
 NAS_MOUNT = Path(os.environ.get("BACKUP_NAS", "/mnt/nas"))
 CRON_FILE = Path(os.environ.get("BACKUP_CRON", "/etc/cron.d/backupcsr"))
 JOBS_DIR = OPT_DIR / "jobs"
+# Overlay durable del catálogo: un YAML por tarea creada por el portal. Vive en /etc
+# (no en /opt) porque install.sh sobrescribe /opt/backupcsr/web/jobs.yml.
+JOBS_OVERLAY_DIR = Path(os.environ.get("BACKUP_JOBS_DIR", str(ETC_DIR / "jobs.d")))
+# Respaldos de scripts al regenerar/eliminar (fuera de /opt/backupcsr/jobs).
+JOBS_BACKUPS_DIR = ETC_DIR / "jobs-backups"
+# Credenciales de los orígenes (los jobs las cargan con `load_credentials`).
+CREDENTIALS_FILE = Path(os.environ.get("BACKUP_CREDENTIALS", str(ETC_DIR / "credentials.env")))
+KEYS_DIR = ETC_DIR / "keys"
 
 # --- Directorio del proyecto (app/..) ---
 WEB_DIR = Path(os.environ.get("BACKUP_WEB_DIR", str(Path(__file__).resolve().parent.parent)))
@@ -65,6 +73,8 @@ NOTIFY_INGEST_TOKEN = os.environ.get("NOTIFY_INGEST_TOKEN", "").strip()
 
 # --- Comportamiento ---
 MANAGE_CRON = _flag("BACKUP_MANAGE_CRON")
+# Crear/editar/eliminar tareas (script + credenciales + catálogo + cron). Por defecto 0.
+MANAGE_JOBS = _flag("BACKUP_MANAGE_JOBS")
 TIMEZONE = os.environ.get("BACKUP_TZ", "America/Bogota")
 POLL_INTERVAL = _int("BACKUP_POLL_INTERVAL", 30)
 GRACE_MIN = _int("BACKUP_GRACE_MIN", 90)

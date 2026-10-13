@@ -14,7 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import auth, batch, catalog, config, cronfile, db, files, logs, runner, sizes
+from . import (
+    auth, batch, catalog, config, credentials, cronfile, db, files, jobgen, logs, runner, sizes,
+)
 
 log = logging.getLogger("backupcsr-web")
 
@@ -23,6 +25,9 @@ router = APIRouter(prefix="/api")
 CRON_FIELD_RE = re.compile(r"^[0-9*/,\-]+$")
 DEST_REL_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
 LOCKFILE_RE = re.compile(r"^/run/lock/[A-Za-z0-9._/-]+$")
+# Nombre de llave SFTP: solo un nombre de archivo simple (sin '/', '..', comodines ni
+# metacaracteres de shell), porque se interpola en el script que corre como root.
+KEY_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 JOB_FIELDS = (
     "slug",
     "name",
@@ -121,6 +126,43 @@ class SelfPasswordIn(BaseModel):
     new: str
 
 
+class RouteIn(BaseModel):
+    source: str = ""
+    dest_rel: str = ""
+
+
+class JobDefIn(BaseModel):
+    """Definición completa de una tarea creada/editada desde el portal."""
+    slug: str = ""
+    name: str
+    description: str = ""
+    origin_type: str = "ftp"
+    cred_prefix: str = ""
+    cred_mode: str = "reuse"          # reuse | new
+    host: str | None = None
+    port: str | None = None
+    user: str | None = None
+    password: str | None = None
+    key_name: str | None = None
+    routes: list[RouteIn] = []
+    exclusions: list[str] = []
+    gate_wait: int | None = None
+    sort: int = 100
+    criticality: str = "media"
+    owner: str = ""
+    retention_days: int | None = None
+    tags: str = ""
+    size_exclude: str = ""
+    notes: str = ""
+    enabled: bool = False
+    lockfile: str | None = None
+    cron_minute: str = "20"
+    cron_hour: str = "6-19"
+    cron_dom: str = "*"
+    cron_month: str = "*"
+    cron_dow: str = "*"
+
+
 class FilesMkdirIn(BaseModel):
     path: str = ""
     name: str
@@ -193,6 +235,24 @@ def _valid_lockfile(value: str) -> bool:
     if any(part in ("", ".", "..") for part in value.split("/")[3:]):
         return False
     return bool(LOCKFILE_RE.match(value))
+
+
+def _oneline(value: str) -> str:
+    """Quita saltos de línea y caracteres de control (se interpolan en comentarios #)."""
+    return re.sub(r"[\x00-\x1f\x7f]+", " ", value).strip()
+
+
+def _valid_key_name(value: str) -> bool:
+    return bool(value) and ".." not in value and bool(KEY_NAME_RE.match(value))
+
+
+def _ensure_lockfile_free(lockfile: str, slug: str) -> None:
+    """409 si otra tarea ya usa ese lockfile (evita dos jobs compartiendo flock)."""
+    row = db.query(
+        "SELECT slug FROM jobs WHERE lockfile=%s AND slug<>%s", (lockfile, slug), one=True
+    )
+    if row:
+        raise HTTPException(status_code=409, detail=f"el lockfile ya lo usa {row['slug']}")
 
 
 def _script_text(slug: str) -> str | None:
@@ -402,6 +462,7 @@ def collect_jobs() -> list[dict]:
             {
                 **{field: job.get(field) for field in JOB_FIELDS},
                 "id": job.get("id"),
+                "managed_by": job.get("managed_by") or "",
                 "status": status,
                 "status_detail": detail,
                 "error_class": (latest or {}).get("error_class"),
@@ -705,6 +766,159 @@ def _require_db() -> None:
         raise HTTPException(status_code=503, detail="base de datos no disponible")
 
 
+def _require_manage_jobs() -> None:
+    if not config.MANAGE_JOBS:
+        raise HTTPException(
+            status_code=409,
+            detail="gestión de tareas deshabilitada (BACKUP_MANAGE_JOBS=0)",
+        )
+
+
+def _clean_routes(routes: list[RouteIn]) -> list[dict]:
+    out: list[dict] = []
+    for route in routes:
+        source = (route.source or "").strip()
+        dest_rel = (route.dest_rel or "").strip()
+        if not source and not dest_rel:
+            continue
+        if not source or len(source) > 255:
+            raise HTTPException(status_code=400, detail="cada ruta necesita un origen (1-255)")
+        if not _valid_dest_rel(dest_rel):
+            raise HTTPException(status_code=400, detail=f"destino inválido: {dest_rel}")
+        out.append({"source": source, "dest_rel": dest_rel})
+    if not out:
+        raise HTTPException(status_code=400, detail="la tarea necesita al menos una ruta")
+    return out
+
+
+def _build_job_def(slug: str, payload: JobDefIn) -> dict:
+    """Valida y normaliza la definición de una tarea del portal."""
+    if not catalog.valid_slug(slug):
+        raise HTTPException(status_code=400, detail="slug inválido (minúsculas, dígitos y guiones)")
+    name = _oneline(payload.name or "")
+    if not name or len(name) > 128:
+        raise HTTPException(status_code=400, detail="nombre inválido (1-128 caracteres)")
+    if payload.origin_type not in catalog.ORIGIN_TYPES:
+        raise HTTPException(status_code=400, detail=f"origin_type inválido: {payload.origin_type}")
+    if payload.criticality not in catalog.CRITICALITIES:
+        raise HTTPException(status_code=400, detail=f"criticality inválida: {payload.criticality}")
+    prefix = (payload.cred_prefix or "").strip().upper()
+    if not credentials.valid_prefix(prefix):
+        raise HTTPException(status_code=400, detail="prefijo de credenciales inválido")
+    if payload.cred_mode not in ("reuse", "new"):
+        raise HTTPException(status_code=400, detail="cred_mode inválido")
+    if payload.cred_mode == "reuse" and not credentials.prefix_exists(prefix):
+        raise HTTPException(
+            status_code=400,
+            detail=f"el grupo de credenciales {prefix} no existe; créalo o revisa el prefijo",
+        )
+    if payload.cred_mode == "new":
+        if credentials.prefix_exists(prefix):
+            raise HTTPException(
+                status_code=409,
+                detail=f"el grupo {prefix} ya existe; reutilízalo o usa otro prefijo",
+            )
+        if not (payload.host or "").strip():
+            raise HTTPException(status_code=400, detail="el host es obligatorio para credenciales nuevas")
+        needed_pass = payload.origin_type in ("ftp", "sftp_pass")
+        if needed_pass and not (payload.password or ""):
+            raise HTTPException(status_code=400, detail="la contraseña es obligatoria para este tipo de origen")
+    # La llave SFTP (nombre de archivo bajo /etc/backupcsr/keys/) hace falta siempre, se
+    # reutilicen o no las credenciales. Se valida el nombre: va en el script root.
+    key_name = ""
+    if payload.origin_type == "sftp":
+        key_name = (payload.key_name or "").strip()
+        if not key_name:
+            raise HTTPException(status_code=400, detail="indica el nombre de la llave SFTP")
+        if not _valid_key_name(key_name):
+            raise HTTPException(status_code=400, detail="nombre de llave SFTP inválido")
+        if not (config.KEYS_DIR / key_name).is_file():
+            raise HTTPException(
+                status_code=400,
+                detail=f"la llave SFTP {key_name} no existe en {config.KEYS_DIR}",
+            )
+
+    routes = _clean_routes(payload.routes)
+    exclusions = [str(item).strip() for item in (payload.exclusions or []) if str(item).strip()]
+    for field, value in (("cron_minute", payload.cron_minute), ("cron_hour", payload.cron_hour),
+                         ("cron_dom", payload.cron_dom), ("cron_month", payload.cron_month),
+                         ("cron_dow", payload.cron_dow)):
+        if not _cron_valid_field(value):
+            raise HTTPException(status_code=400, detail=f"{field} inválido: {value}")
+    lockfile = (payload.lockfile or "").strip()
+    if lockfile and not _valid_lockfile(lockfile):
+        raise HTTPException(status_code=400, detail="lockfile inválido: debe estar bajo /run/lock/")
+    if not 0 <= int(payload.sort) <= 9999:
+        raise HTTPException(status_code=400, detail="sort debe estar entre 0 y 9999")
+
+    return {
+        "slug": slug,
+        "name": name,
+        "description": _oneline(payload.description or "")[:255],
+        "origin_type": payload.origin_type,
+        "cred_prefix": prefix,
+        "origin_host": prefix.lower(),
+        "key_name": key_name,
+        "routes": routes,
+        "exclusions": exclusions,
+        "gate_wait": int(payload.gate_wait) if payload.gate_wait else None,
+        "sort": int(payload.sort),
+        "criticality": payload.criticality,
+        "owner": (payload.owner or "").strip()[:128],
+        "retention_days": payload.retention_days,
+        "tags": catalog.join_list(payload.tags, 255),
+        "size_exclude": catalog.join_list(payload.size_exclude, 512),
+        "notes": (payload.notes or "").strip()[:10000],
+        "enabled": 1 if payload.enabled else 0,
+        "lockfile": lockfile or f"/run/lock/backupcsr-{slug}.lock",
+        "cron_minute": payload.cron_minute.strip(),
+        "cron_hour": payload.cron_hour.strip(),
+        "cron_dom": payload.cron_dom.strip(),
+        "cron_month": payload.cron_month.strip(),
+        "cron_dow": payload.cron_dow.strip(),
+        # Campos de ficha/usos que espera la tabla jobs.
+        "source": " + ".join(route["source"] for route in routes),
+        "dest_rel": routes[0]["dest_rel"],
+    }
+
+
+def _apply_credentials(payload: JobDefIn, job_def: dict) -> None:
+    if payload.cred_mode == "new":
+        credentials.save_group(
+            job_def["cred_prefix"],
+            (payload.host or "").strip(),
+            (payload.port or "").strip() or None,
+            (payload.user or "").strip(),
+            (payload.password or None),
+        )
+
+
+def _persist_job(job_def: dict, user: dict, action: str, text: str | None = None,
+                 payload: JobDefIn | None = None) -> dict:
+    """Instala el script, guarda el overlay, la fila de BD y reescribe el cron.
+
+    Orden seguro ante fallos: primero se deja la fila en la BD **deshabilitada**,
+    luego script/overlay/credenciales, y solo al final se habilita y se reescribe el
+    cron. Así una interrupción a medias no deja una tarea que pueda dispararse.
+    """
+    if text is None:
+        text = jobgen.render_script(job_def)
+        ok, error = jobgen.validate_script(text)
+        if not ok:
+            raise HTTPException(status_code=400, detail=f"el script generado no compila: {error}")
+    catalog.upsert_job({**job_def, "enabled": 0})
+    jobgen.install_script(job_def["slug"], text)
+    catalog.save_overlay(job_def)
+    if payload is not None:
+        _apply_credentials(payload, job_def)
+    if job_def.get("enabled"):
+        catalog.set_enabled(job_def["slug"], True)
+    if config.MANAGE_CRON:
+        cronfile.write(effective_jobs())
+    audit(user["username"], action, job_def["slug"], {"routes": job_def.get("routes")})
+    return next(job for job in collect_jobs() if job["slug"] == job_def["slug"])
+
+
 # ------------------------------- auth -------------------------------------
 
 
@@ -805,6 +1019,7 @@ async def summary(user: dict = Depends(auth.current_user)):
         "files_total": files_total,
         "avg_duration_s": int(sum(durations) / len(durations)) if durations else None,
         "manage_cron": config.MANAGE_CRON,
+        "manage_jobs": config.MANAGE_JOBS,
         "db": db.available(),
         "nas": files.nas_ready(),
         "nas_stats": sizes.nas_stats(),
@@ -820,6 +1035,7 @@ async def list_jobs(user: dict = Depends(auth.current_user)):
     return {
         "jobs": collect_jobs(),
         "manage_cron": config.MANAGE_CRON,
+        "manage_jobs": config.MANAGE_JOBS,
         "db": db.available(),
         "nas": files.nas_ready(),
         "nas_stats": sizes.nas_stats(),
@@ -982,6 +1198,123 @@ async def job_script(slug: str, user: dict = Depends(auth.current_user)):
     }
 
 
+@router.post("/jobs/preview")
+async def preview_job(payload: JobDefIn, user: dict = Depends(auth.require_admin)):
+    """Renderiza el script de una definición sin instalar nada (vista previa)."""
+    _require_manage_jobs()
+    slug = (payload.slug or "nueva-tarea").strip().lower()
+    job_def = _build_job_def(slug, payload)
+    text = jobgen.render_script(job_def)
+    ok, error = jobgen.validate_script(text)
+    schedule = {
+        "minute": job_def["cron_minute"], "hour": job_def["cron_hour"],
+        "dom": job_def["cron_dom"], "month": job_def["cron_month"], "dow": job_def["cron_dow"],
+    }
+    return {
+        "script": text,
+        "valid": ok,
+        "error": error,
+        "next": [_iso(when) for when in logs.next_runs(schedule, 5)],
+    }
+
+
+@router.post("/jobs")
+async def create_job(payload: JobDefIn, user: dict = Depends(auth.require_admin)):
+    _require_manage_jobs()
+    _require_db()
+    slug = (payload.slug or "").strip().lower()
+    if not slug:
+        raise HTTPException(status_code=400, detail="el slug es obligatorio")
+    if find_job(slug) or catalog.is_managed(slug):
+        raise HTTPException(status_code=409, detail=f"ya existe una tarea con el slug {slug}")
+    job_def = _build_job_def(slug, payload)
+    _ensure_lockfile_free(job_def["lockfile"], slug)
+    text = jobgen.render_script(job_def)
+    ok, error = jobgen.validate_script(text)
+    if not ok:
+        raise HTTPException(status_code=400, detail=f"el script generado no compila: {error}")
+    note = ""
+    if payload.enabled and not config.MANAGE_CRON:
+        job_def["enabled"] = 0
+        note = "Se creó deshabilitada: activa BACKUP_MANAGE_CRON=1 para darle horario."
+    job = _persist_job(job_def, user, "job-create", text, payload)
+    return {"ok": True, "job": job, "note": note}
+
+
+@router.get("/jobs/{slug}/definition")
+async def job_definition(slug: str, user: dict = Depends(auth.require_admin)):
+    """Definición para editar/clonar: ficha efectiva + rutas + credenciales del portal."""
+    job = find_job(slug)
+    if not job:
+        raise HTTPException(status_code=404, detail="job no encontrado")
+    overlay = catalog.load_overlay(slug) or {}
+    text = _script_text(slug)
+    routes = overlay.get("routes") or jobgen.parse_routes(text or "")
+    prefix = (
+        overlay.get("cred_prefix")
+        or jobgen.parse_prefix(text or "")
+        or str(job.get("origin_host") or "").upper()
+    )
+    return {
+        "slug": slug,
+        "managed": catalog.is_managed(slug),
+        "job": {field: job.get(field) for field in JOB_FIELDS},
+        "routes": routes,
+        "exclusions": overlay.get("exclusions") or [],
+        "gate_wait": overlay.get("gate_wait"),
+        "cred_prefix": prefix,
+        "key_name": overlay.get("key_name") or "",
+    }
+
+
+@router.put("/jobs/{slug}")
+async def update_job_def(slug: str, payload: JobDefIn, user: dict = Depends(auth.require_admin)):
+    _require_manage_jobs()
+    _require_db()
+    if not catalog.is_managed(slug):
+        raise HTTPException(
+            status_code=409,
+            detail="solo las tareas creadas desde el portal se re-editan aquí",
+        )
+    job_def = _build_job_def(slug, payload)
+    _ensure_lockfile_free(job_def["lockfile"], slug)
+    text = jobgen.render_script(job_def)
+    ok, error = jobgen.validate_script(text)
+    if not ok:
+        raise HTTPException(status_code=400, detail=f"el script generado no compila: {error}")
+    if payload.enabled and not config.MANAGE_CRON:
+        job_def["enabled"] = 0
+    job = _persist_job(job_def, user, "job-update", text, payload)
+    return {"ok": True, "job": job}
+
+
+@router.delete("/jobs/{slug}")
+async def delete_job_def(slug: str, user: dict = Depends(auth.require_admin)):
+    _require_manage_jobs()
+    _require_db()
+    if not catalog.is_managed(slug):
+        raise HTTPException(
+            status_code=409,
+            detail="solo las tareas creadas desde el portal se eliminan aquí",
+        )
+    job = find_job(slug)
+    if job and runner.is_running(job):
+        raise HTTPException(status_code=409, detail="la tarea está corriendo; espera a que termine")
+    jobgen.remove_script(slug)
+    catalog.delete_overlay(slug)
+    catalog.set_enabled(slug, False)
+    if config.MANAGE_CRON:
+        cronfile.write(effective_jobs())
+    audit(user["username"], "job-delete", slug)
+    return {"ok": True}
+
+
+@router.get("/credentials/groups")
+async def credential_groups(user: dict = Depends(auth.require_admin)):
+    """Prefijos de credenciales disponibles (nunca valores)."""
+    return {"manage_jobs": config.MANAGE_JOBS, "groups": credentials.list_groups()}
+
+
 @router.post("/jobs/{slug}/size/refresh")
 def refresh_size(slug: str, user: dict = Depends(auth.require_admin)):
     job = find_job(slug)
@@ -1026,6 +1359,13 @@ async def update_job(slug: str, patch: JobPatch, user: dict = Depends(auth.requi
     job = find_job(slug)
     if not job:
         raise HTTPException(status_code=404, detail="job no encontrado")
+    # Las tareas creadas por el portal tienen un único editor autoritativo (PUT, que
+    # actualiza overlay + script + cron). Evita que el PATCH parcial desincronice.
+    if config.MANAGE_JOBS and catalog.is_managed(slug):
+        raise HTTPException(
+            status_code=409,
+            detail="esta tarea se edita con 'Editar definición' (creada desde el portal)",
+        )
 
     provided = patch.model_dump(exclude_unset=True)
     if not provided:
