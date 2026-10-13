@@ -241,6 +241,9 @@ a:hover { color: var(--bs-link-hover-color); text-decoration: underline; }
   .app-sidebar.open { transform: none; box-shadow: 0 0 40px rgba(0, 0, 0, .5); }
   .app-main { margin-left: 0; }
   .app-content { padding: 14px; }
+  .app-topbar { padding: 0 14px; gap: 8px; }
+  /* Objetivos táctiles cómodos en el panel lateral. */
+  .nav-item { min-height: 44px; }
 }
 
 /* --------------------------------- cards --------------------------------- */
@@ -665,4 +668,14 @@ pre.log {
 @media (max-width: 720px) {
   .conn-pill.hide-sm { display: none; }
   .table-responsive { font-size: 13px; }
+}
+
+/* Móvil estrecho: compacta topbar y barras, y evita campos que desborden. */
+@media (max-width: 575.98px) {
+  .app-topbar { padding: 0 12px; gap: 8px; }
+  .page-title strong { font-size: 14px; }
+  .app-content { padding: 12px; }
+  .toolbar, .actionbar { padding: 10px 12px; }
+  .actionbar { row-gap: 6px; }
+  .table-search { max-width: none; }
 }
