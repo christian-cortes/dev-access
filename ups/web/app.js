@@ -37,6 +37,7 @@
     battery_voltage: "#22d3ee",
   };
   const FALLBACK_RANGES = ["1h", "6h", "24h", "7d", "30d"];
+  const VIEW_TITLES = { dashboard: "Panel", history: "Historial", events: "Eventos", diagnostics: "Diagnóstico" };
 
   const state = {
     meta: null,
@@ -89,6 +90,7 @@
 
   function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.setAttribute("data-bs-theme", theme);
     localStorage.setItem("nut-theme", theme);
     state.theme = theme;
     Object.values(state.charts).forEach((c) => {
@@ -240,27 +242,30 @@
   }
 
   function updateHeader(s) {
-    $("model").textContent = s.model || "UPS";
-    const bits = [s.mfr, s.firmware ? `fw ${s.firmware}` : null, s.serial].filter(Boolean);
-    $("sub").textContent = bits.join(" · ") || "UPS";
-
     const status = statusFromTokens(s.status || s.status_label);
-    const badge = $("statusBadge");
-    badge.dataset.class = status.className;
-    $("statusText").textContent = status.label;
-    const statusIcon = $("statusIcon");
-    if (statusIcon) statusIcon.innerHTML = ICONS[status.icon] || "";
     document.body.dataset.status = status.className;
-    $("statusLabel").textContent = status.label;
-    $("powerFlowState").textContent = status.label;
-    $("lastSeen").textContent = s.ts ? relTime(s.ts) : "—";
-    $("footMeta").textContent = s.model ? `${s.model} · ${status.label}` : "—";
+    if ($("statusLabel")) $("statusLabel").textContent = status.label;
+    if ($("powerFlowState")) $("powerFlowState").textContent = status.label;
+    if ($("lastSeen")) $("lastSeen").textContent = s.ts ? relTime(s.ts) : "—";
+    if ($("footMeta")) $("footMeta").textContent = s.model ? `${s.model} · ${status.label}` : "—";
 
-    const usbState = s.ts && !s.stale ? "Conectado" : "Desconectado";
-    $("usbState").textContent = usbState;
-    $("nutState").textContent = s.ts && !s.stale ? "En marcha" : "Desconectado";
-    const pveState = $("pveState");
-    if (pveState) pveState.textContent = serviceState((s.services || {}).pve).text;
+    const dot = $("sbStatusDot");
+    if (dot) dot.className = "dot " + (status.className === "bad" ? "off" : status.className === "warn" ? "warn" : "ok");
+    if ($("sbStatus")) $("sbStatus").textContent = status.label;
+    if ($("sbModel")) $("sbModel").textContent = s.model || "UPS";
+
+    const live = Boolean(s.ts && !s.stale);
+    const pve = serviceState((s.services || {}).pve);
+    setDot("usbDot", live ? "ok" : "off");
+    setDot("nutDot", live ? "ok" : "off");
+    setDot("pveDot", pve.cls);
+  }
+
+  function setDot(id, cls) {
+    const el = $(id);
+    if (!el) return;
+    const state = cls === "ok" ? "ok" : (cls === "bad" || cls === "off") ? "off" : (cls === "warn" ? "warn" : "");
+    el.className = "dot" + (state ? " " + state : "");
   }
 
   function updatePowerFlow(s) {
@@ -908,14 +913,6 @@
     if (clearBtn) clearBtn.hidden = shown.length === 0;
   }
 
-  function setNotifMenu(open) {
-    const menu = $("notifMenu");
-    const btn = $("notifBtn");
-    if (!menu || !btn) return;
-    menu.hidden = !open;
-    btn.setAttribute("aria-expanded", String(open));
-  }
-
   function renderConsumptionStats(series) {
     const host = $("consumptionStats");
     if (!host) return;
@@ -1095,9 +1092,10 @@
   }
 
   function setMenu(open) {
-    document.body.classList.toggle("menu-open", open);
+    const sidebar = $("app-sidebar");
     const btn = $("menuBtn");
     const scrim = $("menuScrim");
+    if (sidebar) sidebar.classList.toggle("open", open);
     if (btn) {
       btn.setAttribute("aria-expanded", String(open));
       btn.setAttribute("aria-label", open ? "Cerrar menú" : "Abrir menú");
@@ -1107,21 +1105,9 @@
 
   function setSettingsModal(open) {
     const modal = $("settingsModal");
-    if (!modal) return;
-    modal.hidden = !open;
-    document.body.style.overflow = open ? "hidden" : "";
-    if (open) {
-      const card = modal.querySelector(".modal-card");
-      if (card) card.focus();
-    }
-  }
-
-  function setUserMenu(open) {
-    const pop = $("userMenuPop");
-    const btn = $("userBtn");
-    if (!pop) return;
-    pop.hidden = !open;
-    if (btn) btn.setAttribute("aria-expanded", String(open));
+    if (!modal || !window.bootstrap || !bootstrap.Modal) return;
+    const inst = bootstrap.Modal.getOrCreateInstance(modal);
+    if (open) inst.show(); else inst.hide();
   }
 
   function logout() {
@@ -1136,9 +1122,11 @@
     document.querySelectorAll("main [data-view]").forEach((el) => {
       el.classList.toggle("hidden", el.dataset.view !== view);
     });
-    document.querySelectorAll(".nav-link").forEach((b) => {
+    document.querySelectorAll(".nav-item").forEach((b) => {
       b.classList.toggle("active", b.dataset.view === view);
     });
+    const title = $("pageTitle");
+    if (title) title.textContent = VIEW_TITLES[view] || "Panel";
     if (view === "history") {
       Promise.all([loadHistory(), loadMonthlyConsumption()]).then(() =>
         Object.values(state.charts).forEach((c) => c && c.resize())
@@ -1161,7 +1149,7 @@
     ws.onopen = () => {
       state.wsConnected = true;
       state.reconnectStep = 0;
-      $("nutState").textContent = "En marcha";
+      setDot("nutDot", "ok");
     };
     ws.onmessage = (ev) => {
       try {
@@ -1172,7 +1160,7 @@
     };
     ws.onclose = () => {
       state.wsConnected = false;
-      $("nutState").textContent = "Desconectado";
+      setDot("nutDot", "off");
       const delays = [2000, 5000, 10000, 30000];
       const delay = delays[Math.min(state.reconnectStep, delays.length - 1)];
       state.reconnectStep += 1;
@@ -1227,34 +1215,19 @@
     renderKpis();
     buildCharts();
     renderRanges();
-    document.querySelectorAll(".nav-link").forEach((b) => {
+    document.querySelectorAll(".nav-item").forEach((b) => {
       b.addEventListener("click", () => showView(b.dataset.view));
     });
     const menuBtn = $("menuBtn");
-    if (menuBtn) menuBtn.addEventListener("click", () => setMenu(!document.body.classList.contains("menu-open")));
+    if (menuBtn) menuBtn.addEventListener("click", () => setMenu(!$("app-sidebar").classList.contains("open")));
     const menuScrim = $("menuScrim");
     if (menuScrim) menuScrim.addEventListener("click", () => setMenu(false));
-    const settingsClose = $("settingsClose");
-    if (settingsClose) settingsClose.addEventListener("click", () => setSettingsModal(false));
-    const settingsModal = $("settingsModal");
-    if (settingsModal) settingsModal.addEventListener("click", (e) => {
-      if (e.target.hasAttribute("data-close")) setSettingsModal(false);
-    });
-    const userBtn = $("userBtn");
-    if (userBtn) userBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      setUserMenu($("userMenuPop").hidden);
-    });
     const userTheme = $("userTheme");
     if (userTheme) userTheme.addEventListener("click", () => {
-      setUserMenu(false);
       applyTheme(state.theme === "dark" ? "light" : "dark");
     });
     const userSettings = $("userSettings");
-    if (userSettings) userSettings.addEventListener("click", () => {
-      setUserMenu(false);
-      setSettingsModal(true);
-    });
+    if (userSettings) userSettings.addEventListener("click", () => setSettingsModal(true));
     const userLogout = $("userLogout");
     if (userLogout) userLogout.addEventListener("click", logout);
     fetch("/api/auth/me", { credentials: "same-origin" })
@@ -1265,19 +1238,8 @@
     if (monthPrev) monthPrev.addEventListener("click", () => shiftMonth(-1));
     const monthNext = $("monthNext");
     if (monthNext) monthNext.addEventListener("click", () => shiftMonth(1));
-    const notifBtn = $("notifBtn");
-    if (notifBtn) notifBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      setNotifMenu($("notifMenu").hidden);
-    });
     const notifClear = $("notifClear");
     if (notifClear) notifClear.addEventListener("click", clearNotifs);
-    document.addEventListener("click", (e) => {
-      const wrap = $("notifWrap");
-      if (wrap && !wrap.contains(e.target)) setNotifMenu(false);
-      const um = $("userMenu");
-      if (um && !um.contains(e.target)) setUserMenu(false);
-    });
     renderNotifications();
     showView("dashboard");
     await Promise.all([refreshSummary(), loadHistory(), loadEvents(), loadPowerEvents(), loadMonthlyConsumption()]);
@@ -1287,6 +1249,6 @@
     setInterval(tickLastSeen, 1000);
   }
 
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setMenu(false); setNotifMenu(false); setSettingsModal(false); setUserMenu(false); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
   document.addEventListener("DOMContentLoaded", init);
 })();

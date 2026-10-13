@@ -1,233 +1,249 @@
 <!DOCTYPE html>
-<html lang="es" data-theme="dark">
+<html lang="es" data-theme="dark" data-bs-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
-<meta name="theme-color" content="#0a0e13">
+<meta name="theme-color" content="#202124">
 <title>UPS · Centro de energía de infraestructura</title>
 <link rel="icon" type="image/png" href="/favicon.png?v=2">
 <link rel="apple-touch-icon" href="/favicon.png?v=2">
-<link rel="stylesheet" href="/styles.css?v=4">
+<script src="/theme.js?v=1"></script>
+<link rel="stylesheet" href="/vendor/bootstrap/bootstrap.min.css">
+<link rel="stylesheet" href="/styles.css?v=8">
 </head>
 <body data-status="ok">
 <div class="app">
-  <header class="top" id="top">
-    <div class="brand">
-      <img class="logo" alt="" src="/favicon.png?v=2">
-      <div class="brand-text">
-        <span class="eyebrow">Centro de energía de infraestructura</span>
-        <h1 id="model">UPS</h1>
-        <p class="sub" id="sub">conectando…</p>
+  <aside class="app-sidebar" id="app-sidebar">
+    <div class="sidebar-brand">
+      <div class="logo"><img src="/favicon.png?v=2" alt="CortexDev"></div>
+      <div>
+        <div class="brand-title">Centro de energía</div>
+        <div class="brand-sub">CortexDev</div>
       </div>
     </div>
-
-    <nav class="main-nav" aria-label="Navegación principal">
-      <button type="button" class="nav-link active" data-view="dashboard">Panel</button>
-      <button type="button" class="nav-link" data-view="history">Historial</button>
-      <button type="button" class="nav-link" data-view="events">Eventos</button>
-      <button type="button" class="nav-link" data-view="diagnostics">Diagnóstico</button>
-    </nav>
-
-    <div class="actions">
-      <span class="status-pill" id="statusBadge" data-class="ok" aria-live="polite">
-        <span class="pulse" id="statusDot"></span>
-        <span class="status-ico" id="statusIcon" aria-hidden="true"></span>
-        <span id="statusText">—</span>
-      </span>
-      <div class="notif" id="notifWrap">
-        <button id="notifBtn" class="icon-btn notif-btn" type="button" aria-label="Notificaciones" aria-haspopup="true" aria-expanded="false">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
-          <span class="notif-badge" id="notifCount" hidden>0</span>
-        </button>
-        <div class="notif-menu" id="notifMenu" hidden>
-          <div class="notif-menu-head">
-            <span>Notificaciones</span>
-            <button id="notifClear" class="notif-clear" type="button" hidden>Limpiar todo</button>
-          </div>
-          <div class="notif-list" id="notifList"></div>
-        </div>
-      </div>
-      <div class="user-menu" id="userMenu">
-        <button id="userBtn" class="icon-btn" type="button" aria-label="Menú de usuario" title="Cuenta" aria-haspopup="true" aria-expanded="false">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        </button>
-        <div class="user-menu-pop" id="userMenuPop" hidden>
-          <div class="user-menu-name" id="userName">Cuenta</div>
-          <div class="user-menu-sep"></div>
-          <button class="user-menu-item" type="button" id="userTheme">Cambiar tema</button>
-          <button class="user-menu-item" type="button" id="userSettings">Ajustes</button>
-          <div class="user-menu-sep"></div>
-          <button class="user-menu-item" type="button" id="userLogout">Cerrar sesión</button>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <button id="menuBtn" class="menu-fab" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="top">
-    <svg class="i-menu" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-    <svg class="i-close" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6 18 18M18 6 6 18"/></svg>
-  </button>
-  <div id="menuScrim" class="menu-scrim" hidden></div>
-
-  <div class="topline">
-    <div class="service-strip" aria-label="Servicios del sistema">
-      <span>USB · <strong id="usbState">Desconocido</strong></span>
-      <span>NUT · <strong id="nutState">Desconocido</strong></span>
-      <span>PVE · <strong id="pveState">No monitoreado</strong></span>
-    </div>
-    <div class="live-pill" aria-live="polite">
-      <span class="live-dot"></span>
-      <span id="lastSeen">Esperando datos…</span>
-    </div>
-  </div>
-
-  <div id="banner" class="banner hidden" role="status" aria-live="polite"></div>
-
-  <main class="dashboard-shell">
-    <section class="hero card" id="dashboard" data-view="dashboard">
-      <div class="hero-battery">
-        <div class="batt" id="batt" role="img" aria-label="Nivel de batería">
-          <div class="batt-cap"></div>
-          <div class="batt-body">
-            <div class="batt-fill" id="battFill"></div>
-            <div class="batt-marks" id="battMarks"></div>
-            <span class="batt-pct" id="battPct">--%</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="hero-info">
-        <div class="hero-head">
-          <span class="label">Autonomía estimada</span>
-          <span class="meta-tag" id="statusLabel">EN LÍNEA</span>
-        </div>
-        <div class="hero-stat">
-          <span class="hero-value" id="runtime">--:--:--</span>
-          <span class="hint" id="runtimeSub">Basado en consumo actual.</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="card power-flow" id="powerFlow" data-view="dashboard" aria-label="Flujo de energía">
-      <div class="card-head compact">
-        <h2>Flujo de energía</h2>
-        <span class="flow-state" id="powerFlowState">EN LÍNEA</span>
-      </div>
-      <div class="flow-layout">
-        <div class="flow-node">
-          <span class="flow-label">Red</span>
-          <strong id="flowGrid">—</strong>
-        </div>
-        <div class="flow-arrow" aria-hidden="true">→</div>
-        <div class="flow-node emphasis">
-          <span class="flow-label">UPS</span>
-          <strong id="flowBattery">—</strong>
-        </div>
-        <div class="flow-arrow" aria-hidden="true">→</div>
-        <div class="flow-node">
-          <span class="flow-label">Infraestructura</span>
-          <strong id="flowLoad">—</strong>
-        </div>
-      </div>
-    </section>
-
-    <section class="grid" id="kpis" data-view="dashboard" aria-label="Métricas principales"></section>
-
-    <div class="info-grid" data-view="dashboard">
-      <section class="card system-status">
-        <div class="card-head compact"><h2>Estado del sistema</h2></div>
-        <ul class="status-list" id="systemStatus"></ul>
-      </section>
-
-      <section class="card health-panel">
-        <div class="card-head compact"><h2>Salud del sistema</h2></div>
-        <div class="health-wrap" id="healthState">
-          <div class="health-pill">SALUDABLE</div>
-          <p id="healthSummary">La UPS funciona con normalidad.</p>
-        </div>
-      </section>
-    </div>
-
-    <section class="card charts" data-view="history">
-      <div class="card-head">
-        <div>
-          <h2>Consumo</h2>
-          <p class="hint" id="chartHint">Recopilando datos…</p>
-        </div>
-        <div class="ranges" id="ranges" role="group" aria-label="Rango de tiempo"></div>
-      </div>
-
-      <div class="cons-stats" id="consumptionStats"></div>
-
-      <div class="charts-grid primary-grid">
-        <figure class="chart-box primary"><figcaption>Consumo</figcaption><div class="chart-canvas"><canvas id="chartLoad"></canvas></div></figure>
-      </div>
-
-      <div class="charts-grid secondary-grid">
-        <figure class="chart-box"><figcaption>Batería</figcaption><div class="chart-canvas"><canvas id="chartCharge"></canvas></div></figure>
-        <figure class="chart-box"><figcaption>Autonomía</figcaption><div class="chart-canvas"><canvas id="chartRuntime"></canvas></div></figure>
-        <figure class="chart-box"><figcaption>Voltaje</figcaption><div class="chart-canvas"><canvas id="chartVolt"></canvas></div></figure>
-      </div>
-    </section>
-
-    <section class="card charts-month" data-view="history">
-      <div class="card-head">
-        <div>
-          <h2 id="monthTitle">Consumo del mes</h2>
-          <p class="hint" id="monthHint">Recopilando datos…</p>
-        </div>
-        <div class="ranges" id="monthNav" role="group" aria-label="Mes">
-          <button type="button" id="monthPrev" aria-label="Mes anterior" title="Mes anterior">‹</button>
-          <button type="button" id="monthNext" aria-label="Mes siguiente" title="Mes siguiente">›</button>
-        </div>
-      </div>
-
-      <div class="cons-stats" id="monthStats"></div>
-
-      <div class="charts-grid primary-grid">
-        <figure class="chart-box primary">
-          <figcaption>Consumo diario</figcaption>
-          <div class="chart-canvas"><canvas id="chartMonth"></canvas></div>
-        </figure>
-      </div>
-    </section>
-
-    <section class="card events" data-view="events">
-      <div class="card-head compact"><h2>Cortes de energía</h2></div>
-      <div id="powerEvents" class="events-list"></div>
-      <div class="card-head compact section-gap"><h2>Actividad reciente</h2></div>
-      <div id="events" class="events-list"></div>
-    </section>
-
-    <section class="card diagnostics" data-view="diagnostics">
-      <div class="card-head compact"><h2>Diagnóstico</h2></div>
-      <div id="diagnostics" class="diag-grid"></div>
-    </section>
-  </main>
-
-  <footer class="foot">
-    <span id="footMeta">—</span>
-    <a href="/cgi-bin/nut/upsstats.cgi" target="_blank" rel="noopener">NUT clásico</a>
-  </footer>
-</div>
-<div id="settingsModal" class="modal" hidden>
-  <div class="modal-scrim" data-close></div>
-  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" tabindex="-1">
-    <div class="modal-head">
-      <h2 id="settingsModalTitle">Notificaciones</h2>
-      <button id="settingsClose" class="modal-close" type="button" aria-label="Cerrar">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6 18 18M18 6 6 18"/></svg>
+    <nav class="sidebar-nav" aria-label="Navegación principal">
+      <div class="nav-section">Operación</div>
+      <button type="button" class="nav-item" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14 8 8"/><path d="M3.5 18a9 9 0 1 1 17 0"/></svg>
+        <span>Panel</span>
       </button>
+      <button type="button" class="nav-item" data-view="history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span>Historial</span>
+      </button>
+      <button type="button" class="nav-item" data-view="events">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M6.4 6.4a8 8 0 1 0 11.2 0"/></svg>
+        <span>Eventos</span>
+      </button>
+      <div class="nav-section">Sistema</div>
+      <button type="button" class="nav-item" data-view="diagnostics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+        <span>Diagnóstico</span>
+      </button>
+    </nav>
+    <div class="sidebar-foot">
+      <span><span class="dot" id="sbStatusDot"></span><span id="sbStatus">—</span></span>
+      <span class="muted" id="sbModel">—</span>
+      <span class="svc-row">
+        <span class="svc" title="Comunicación USB"><span class="dot" id="usbDot"></span>USB</span>
+        <span class="svc" title="Servicio NUT"><span class="dot" id="nutDot"></span>NUT</span>
+        <span class="svc" title="Proxmox VE"><span class="dot" id="pveDot"></span>PVE</span>
+      </span>
     </div>
-    <div class="modal-body">
-      <div id="push-settings" data-area="ups"></div>
+  </aside>
+  <div class="sidebar-backdrop" id="menuScrim" hidden></div>
+
+  <div class="app-main">
+    <header class="app-topbar">
+      <button type="button" class="btn btn-outline-secondary icon-toggle d-lg-none" id="menuBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="app-sidebar">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <div class="page-title">
+        <strong id="pageTitle">Panel</strong>
+        <span class="page-updated" id="lastSeen">Esperando datos…</span>
+      </div>
+      <div class="topbar-actions">
+        <div class="dropdown">
+          <button type="button" class="btn btn-outline-secondary icon-toggle" id="notifBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Notificaciones" title="Notificaciones">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+            <span class="icon-toggle-badge" id="notifCount" hidden>0</span>
+          </button>
+          <div class="dropdown-menu dropdown-menu-end notif-menu" id="notifMenu" aria-labelledby="notifBtn">
+            <div class="notif-menu-head">
+              <span>Notificaciones</span>
+              <button id="notifClear" class="notif-clear" type="button" hidden>Limpiar todo</button>
+            </div>
+            <div class="notif-list" id="notifList"></div>
+          </div>
+        </div>
+        <div class="dropdown">
+          <button type="button" class="btn btn-outline-secondary icon-toggle" id="userBtn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Menú de usuario" title="Cuenta">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userBtn">
+            <li><span class="dropdown-item-text fw-semibold" id="userName">Cuenta</span></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item" type="button" id="userTheme">Cambiar tema</button></li>
+            <li><button class="dropdown-item" type="button" id="userSettings">Ajustes</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item" type="button" id="userLogout">Cerrar sesión</button></li>
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    <div class="app-content">
+      <div id="banner" class="banner hidden" role="status" aria-live="polite"></div>
+
+      <main class="dashboard-shell">
+        <section class="hero card" id="dashboard" data-view="dashboard">
+          <div class="hero-battery">
+            <div class="batt" id="batt" role="img" aria-label="Nivel de batería">
+              <div class="batt-cap"></div>
+              <div class="batt-body">
+                <div class="batt-fill" id="battFill"></div>
+                <div class="batt-marks" id="battMarks"></div>
+                <span class="batt-pct" id="battPct">--%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-info">
+            <div class="hero-head">
+              <span class="label">Autonomía estimada</span>
+              <span class="meta-tag" id="statusLabel">EN LÍNEA</span>
+            </div>
+            <div class="hero-stat">
+              <span class="hero-value" id="runtime">--:--:--</span>
+              <span class="hint" id="runtimeSub">Basado en consumo actual.</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card power-flow" id="powerFlow" data-view="dashboard" aria-label="Flujo de energía">
+          <div class="card-head compact">
+            <h2>Flujo de energía</h2>
+            <span class="flow-state" id="powerFlowState">EN LÍNEA</span>
+          </div>
+          <div class="flow-layout">
+            <div class="flow-node">
+              <span class="flow-label">Red</span>
+              <strong id="flowGrid">—</strong>
+            </div>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <div class="flow-node emphasis">
+              <span class="flow-label">UPS</span>
+              <strong id="flowBattery">—</strong>
+            </div>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <div class="flow-node">
+              <span class="flow-label">Infraestructura</span>
+              <strong id="flowLoad">—</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid" id="kpis" data-view="dashboard" aria-label="Métricas principales"></section>
+
+        <div class="info-grid" data-view="dashboard">
+          <section class="card system-status">
+            <div class="card-head compact"><h2>Estado del sistema</h2></div>
+            <ul class="status-list" id="systemStatus"></ul>
+          </section>
+
+          <section class="card health-panel">
+            <div class="card-head compact"><h2>Salud del sistema</h2></div>
+            <div class="health-wrap" id="healthState">
+              <div class="health-pill">SALUDABLE</div>
+              <p id="healthSummary">La UPS funciona con normalidad.</p>
+            </div>
+          </section>
+        </div>
+
+        <section class="card charts" data-view="history">
+          <div class="card-head">
+            <div>
+              <h2>Consumo</h2>
+              <p class="hint" id="chartHint">Recopilando datos…</p>
+            </div>
+            <div class="ranges" id="ranges" role="group" aria-label="Rango de tiempo"></div>
+          </div>
+
+          <div class="cons-stats" id="consumptionStats"></div>
+
+          <div class="charts-grid primary-grid">
+            <figure class="chart-box primary"><figcaption>Consumo</figcaption><div class="chart-canvas"><canvas id="chartLoad"></canvas></div></figure>
+          </div>
+
+          <div class="charts-grid secondary-grid">
+            <figure class="chart-box"><figcaption>Batería</figcaption><div class="chart-canvas"><canvas id="chartCharge"></canvas></div></figure>
+            <figure class="chart-box"><figcaption>Autonomía</figcaption><div class="chart-canvas"><canvas id="chartRuntime"></canvas></div></figure>
+            <figure class="chart-box"><figcaption>Voltaje</figcaption><div class="chart-canvas"><canvas id="chartVolt"></canvas></div></figure>
+          </div>
+        </section>
+
+        <section class="card charts-month" data-view="history">
+          <div class="card-head">
+            <div>
+              <h2 id="monthTitle">Consumo del mes</h2>
+              <p class="hint" id="monthHint">Recopilando datos…</p>
+            </div>
+            <div class="ranges" id="monthNav" role="group" aria-label="Mes">
+              <button type="button" id="monthPrev" aria-label="Mes anterior" title="Mes anterior">‹</button>
+              <button type="button" id="monthNext" aria-label="Mes siguiente" title="Mes siguiente">›</button>
+            </div>
+          </div>
+
+          <div class="cons-stats" id="monthStats"></div>
+
+          <div class="charts-grid primary-grid">
+            <figure class="chart-box primary">
+              <figcaption>Consumo diario</figcaption>
+              <div class="chart-canvas"><canvas id="chartMonth"></canvas></div>
+            </figure>
+          </div>
+        </section>
+
+        <section class="card events" data-view="events">
+          <div class="card-head compact"><h2>Cortes de energía</h2></div>
+          <div id="powerEvents" class="events-list"></div>
+          <div class="card-head compact section-gap"><h2>Actividad reciente</h2></div>
+          <div id="events" class="events-list"></div>
+        </section>
+
+        <section class="card diagnostics" data-view="diagnostics">
+          <div class="card-head compact"><h2>Diagnóstico</h2></div>
+          <div id="diagnostics" class="diag-grid"></div>
+        </section>
+      </main>
+
+      <footer class="foot">
+        <span id="footMeta">—</span>
+        <a href="/cgi-bin/nut/upsstats.cgi" target="_blank" rel="noopener">NUT clásico</a>
+      </footer>
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h6" id="settingsModalTitle">Notificaciones</h2>
+        <button type="button" class="btn-close" id="settingsClose" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="push-settings" data-area="ups"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
 <script src="/vendor/chart.umd.min.js"></script>
-<script src="/app.js?v=4"></script>
+<script src="/vendor/bootstrap/bootstrap.bundle.min.js" defer></script>
+<script src="/app.js?v=6" defer></script>
 <script src="/push-client.js?v=5" defer></script>
 </body>
 </html>
