@@ -462,8 +462,15 @@ function jobRow(job, opts) {
 
 /* --------------------------- selección y acciones -------------------------- */
 
-function filteredRows(state) {
+/* El Panel (dashboard) solo muestra las copias activas: las deshabilitadas siguen
+   visibles y gestionables en las demás vistas (Programación, Historial, Archivos). */
+function panelJobs(state) {
   const jobs = Array.isArray(state.jobs) ? state.jobs : [];
+  return jobs.filter((job) => !!job.enabled);
+}
+
+function filteredRows(state) {
+  const jobs = panelJobs(state);
   const term = String(state.jobsSearch || '').trim().toLowerCase();
   return term
     ? jobs.filter((job) => [job.name, job.slug, job.tags, job.owner, job.notes]
@@ -573,7 +580,8 @@ function renderJobs(state) {
   const body = $('jobs-body');
   if (!body) return;
   const count = $('jobs-count');
-  const jobs = Array.isArray(state.jobs) ? state.jobs : [];
+  const allJobs = Array.isArray(state.jobs) ? state.jobs : [];
+  const jobs = panelJobs(state);
   const rows = filteredRows(state);
 
   // La selección y el detalle solo se conservan si la tarea sigue existiendo.
@@ -592,8 +600,10 @@ function renderJobs(state) {
     message = failures
       ? 'No se pudieron cargar las tareas (' + failures + ').'
       : 'No se pudieron cargar las tareas: el servidor no devolvió la lista.';
-  } else if (!jobs.length) {
+  } else if (!allJobs.length) {
     message = 'El catálogo no tiene tareas (/etc/cron.d/backupcsr + jobs.yml).';
+  } else if (!jobs.length) {
+    message = 'No hay copias activas. Las deshabilitadas están en Programación.';
   } else if (filtered) {
     message = 'Sin coincidencias para «' + String(state.jobsSearch || '').trim() + '».';
   }

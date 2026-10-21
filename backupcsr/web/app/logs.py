@@ -43,6 +43,10 @@ ERROR_HINT_RE = re.compile(r"fatal|error|failed|refused|denied|no such|timeout|r
 TRIGGER_RE = re.compile(r"trigger=(\w+)")
 EXIT_RE = re.compile(r"exit=(\d+)")
 PARTIAL_RE = re.compile(r"^AVISO:\s*(\d+)\s+archivos?\s+con\s+error", re.I)
+# Entradas que el NAS CIFS no puede representar (no son errores de copia reales).
+UNREPR_RE = re.compile(
+    r"^AVISO:\s*(\d+)\s+entradas?\s+no\s+representables", re.I
+)
 TRANSIENT_RE = re.compile(
     r"max-retries|timed out|timeout|connection refused|connection reset|broken pipe|"
     r"temporarily unavailable|reconnect|connection closed",
@@ -172,6 +176,7 @@ def parse_slug(slug: str) -> list[dict]:
                     "exit_code": None,
                     "triggered_by": "cron",
                     "partial_files": 0,
+                    "unrepr_entries": 0,
                     "truncated": False,
                     "log_path": str(path),
                     "_files": [],
@@ -196,11 +201,18 @@ def parse_slug(slug: str) -> list[dict]:
                 note(message)
             elif message.startswith("AVISO:"):
                 partial = PARTIAL_RE.match(message)
-                if partial and current["status"] != "FALLO":
+                unrepr = UNREPR_RE.match(message)
+                if (partial or unrepr) and current["status"] != "FALLO":
                     current["error_class"] = "parcial"
-                    current["partial_files"] = int(partial.group(1))
-                    if not current["error_text"]:
+                    if partial:
+                        current["partial_files"] = int(partial.group(1))
+                        # El resumen del job manda sobre la primera línea cruda de lftp.
                         current["error_text"] = message[:1000]
+                    else:
+                        current["unrepr_entries"] = int(unrepr.group(1))
+                        # No pisar el resumen de errores reales si ya se vio uno.
+                        if not current["partial_files"]:
+                            current["error_text"] = message[:1000]
                 note(message)
             elif message.startswith("FALLO:") or message.startswith("ERROR:"):
                 current["status"] = "FALLO"
@@ -418,6 +430,7 @@ def run_to_dict(run: dict) -> dict:
         "exit_code": run.get("exit_code"),
         "triggered_by": run.get("triggered_by") or "cron",
         "partial_files": int(run.get("partial_files") or 0),
+        "unrepr_entries": int(run.get("unrepr_entries") or 0),
         "truncated": bool(run.get("truncated")),
         "log_path": run.get("log_path"),
         "duration_s": _duration(run),

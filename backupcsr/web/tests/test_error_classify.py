@@ -51,6 +51,28 @@ SAMPLE = """\
 """
 (LOG_DIR / "demo.log").write_text(SAMPLE, encoding="utf-8")
 
+UNREPR_SAMPLE = """\
+2026-09-26 14:00:00 [unrepr] === inicio unrepr (dry_run=0 nice=15 trigger=cron) ===
+mirror: /origen/RESOLUCI<0xE0>N: No such file or directory
+2026-09-26 14:00:02 [unrepr] AVISO: 68 entradas no representables en el NAS (nombre no UTF-8, barra invertida o enlace simbólico); se omiten
+2026-09-26 14:00:03 [unrepr] === fin unrepr ===
+2026-09-26 15:00:00 [unrepr] === inicio unrepr (dry_run=0 nice=15 trigger=cron) ===
+mirror: /origen/foo: Permission denied
+2026-09-26 15:00:02 [unrepr] AVISO: 3 archivos con error
+2026-09-26 15:00:03 [unrepr] AVISO: 68 entradas no representables en el NAS (nombre no UTF-8, barra invertida o enlace simbólico); se omiten
+2026-09-26 15:00:04 [unrepr] === fin unrepr ===
+2026-09-26 16:00:00 [unrepr] === inicio unrepr (dry_run=0 nice=15 trigger=cron) ===
+2026-09-26 16:00:01 [unrepr] AVISO: 51 archivos con error
+2026-09-26 16:00:02 [unrepr] AVISO: 68 entradas no representables en el NAS (nombre no UTF-8, barra invertida o enlace simbólico); se omiten
+2026-09-26 16:00:03 [unrepr] ERROR: 51 archivos con error superan el tope de 50
+2026-09-26 16:00:04 [unrepr] PROCESO: exit=1
+2026-09-26 17:00:00 [unrepr] === inicio unrepr (dry_run=0 nice=15 trigger=cron) ===
+2026-09-26 17:00:01 [unrepr] AVISO: 201 entradas no representables en el NAS (nombre no UTF-8, barra invertida o enlace simbólico); se omiten
+2026-09-26 17:00:02 [unrepr] ERROR: 201 entradas no representables superan el tope de 200
+2026-09-26 17:00:03 [unrepr] PROCESO: exit=1
+"""
+(LOG_DIR / "unrepr.log").write_text(UNREPR_SAMPLE, encoding="utf-8")
+
 runs = logs.parse_slug("demo")
 check("se detectan 4 corridas", len(runs) == 4, len(runs))
 
@@ -74,6 +96,34 @@ check("transitorio: exit 1", transient["exit_code"] == 1, transient["exit_code"]
 check("fatal: estado FALLO", fatal["status"] == "FALLO", fatal["status"])
 check("fatal: clase fatal", fatal["error_class"] == "fatal", fatal["error_class"])
 check("fatal: conserva líneas", len(fatal["error_lines"]) >= 1, fatal["error_lines"])
+
+# Entradas no representables: se separan de los errores reales y cierran PARCIAL.
+unrepr_runs = logs.parse_slug("unrepr")
+check("unrepr: se detectan 4 corridas", len(unrepr_runs) == 4, len(unrepr_runs))
+u_only, u_both, u_fatal, u_cap = unrepr_runs
+
+check("unrepr solo: estado PARCIAL", u_only["status"] == "PARCIAL", u_only["status"])
+check("unrepr solo: clase parcial", u_only["error_class"] == "parcial", u_only["error_class"])
+check("unrepr solo: cuenta 68", u_only["unrepr_entries"] == 68, u_only["unrepr_entries"])
+check("unrepr solo: partial_files 0", u_only["partial_files"] == 0, u_only["partial_files"])
+check("unrepr solo: evaluate PARCIAL",
+      logs.evaluate(u_only, {"minute": "0", "hour": "*"}, logs.now(), False)[0] == "PARCIAL")
+check("unrepr solo: resumen manda sobre crudo",
+      "68 entradas no representables" in (u_only["error_text"] or ""), u_only["error_text"])
+
+check("unrepr + real: partial_files 3", u_both["partial_files"] == 3, u_both["partial_files"])
+check("unrepr + real: unrepr 68", u_both["unrepr_entries"] == 68, u_both["unrepr_entries"])
+check("unrepr + real: resumen real manda",
+      "3 archivos con error" in (u_both["error_text"] or ""), u_both["error_text"])
+
+check("reales > tope: FALLO", u_fatal["status"] == "FALLO", u_fatal["status"])
+check("reales > tope: clase fatal", u_fatal["error_class"] == "fatal", u_fatal["error_class"])
+check("reales > tope: no queda parcial", u_fatal["error_class"] != "parcial", u_fatal["error_class"])
+
+check("no repr > tope: FALLO", u_cap["status"] == "FALLO", u_cap["status"])
+check("no repr > tope: fatal", u_cap["error_class"] == "fatal", u_cap["error_class"])
+check("run_to_dict incluye unrepr_entries",
+      logs.run_to_dict(u_only)["unrepr_entries"] == 68)
 
 # effective_run ignora la OMITIDO; latest_omit la devuelve si es la última.
 check("effective_run salta OMITIDO", logs.effective_run(runs[:2]) is partial)

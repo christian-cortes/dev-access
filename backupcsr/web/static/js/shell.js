@@ -5,7 +5,7 @@ import {
   $, el, icon, pill, fmtDate, fmtDuration, fmtGb, relTime, toast, confirmDialog,
   openModal, hideModal,
 } from './ui.js';
-import { panel } from './views/panel.js?v=15';
+import { panel } from './views/panel.js?v=16';
 import { history } from './views/history.js';
 import { files } from './views/files.js';
 import { schedule, openEditor } from './views/schedule.js';
