@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es" data-portal-mode="static" data-asset-version="{{ asset_version }}">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{{ page_title }}</title>
+	<link rel="icon" type="image/png" sizes="32x32" href="/favicons/cortexdev-32.png">
+	<link rel="apple-touch-icon" sizes="180x180" href="/favicons/cortexdev-180.png">
+	<script src="/{{ theme_asset }}"></script>
+	<link rel="stylesheet" href="/vendor/bootstrap/bootstrap.min.css">
+	<link rel="stylesheet" href="/{{ style_asset }}">
+	<script src="/vendor/bootstrap/bootstrap.bundle.min.js" defer></script>
+	<script src="/{{ app_asset }}" defer></script>
+	<script src="/{{ render_asset }}" defer></script>
+</head>
+
+<body>
+	<div class="wrap">
+		{% include "partials/header.html" %}
+		{% block content %}{% endblock %}
+		{% include "partials/footer.html" %}
+	</div>
+	{% block scripts %}{% endblock %}
+</body>
+
+</html>

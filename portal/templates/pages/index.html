@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3">
+	{% for cat in categories if cat.show_card %}
+	<div class="col">
+		<a class="card h-100 text-body" href="{{ cat.url }}" data-tech="{{ cat.card_tech|join(',') }}"
+			data-category-card="{{ cat.slug }}" data-category-title="{{ cat.title }}"
+			data-count-label="{{ cat.count_label }}">
+			<div class="card-body">
+				<h3 class="h6 card-title">{{ cat.title }}</h3>
+				<p class="card-text small text-body-secondary">{{ cat.description|safe }}</p>
+				<div class="count">{{ cat.count }} {{ cat.count_label }} &middot; — en línea &rarr;</div>
+			</div>
+		</a>
+	</div>
+	{% endfor %}
+</div>
+
+<div class="section-title">{{ home.shortcuts_title }}</div>
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3">
+	{% with services=shortcut_services %}
+	{% include "partials/cards.html" %}
+	{% endwith %}
+</div>
+
+<div id="stats-title" class="section-title">Estadísticas</div>
+<section id="portal-stats" class="stats-grid" aria-labelledby="stats-title" aria-live="polite" aria-busy="true">
+	<article class="stat"><span class="stat-label">Disponibilidad 24 h</span><strong data-stat="availability">—</strong></article>
+	<article class="stat"><span class="stat-label">Servicios</span><strong data-stat="services">—</strong></article>
+	<article class="stat"><span class="stat-label">Latencia media</span><strong data-stat="latency">—</strong></article>
+	<article class="stat"><span class="stat-label">Incidentes 24 h</span><strong data-stat="incidents">—</strong></article>
+	<div id="portal-sparkline" class="sparkline"></div>
+	<div id="portal-stats-detail" class="stats-detail"></div>
+</section>
+
+<div class="alert notice mt-4" role="note">
+	{{ home.notice_html|safe }}
+</div>
+
+<div class="d-flex flex-wrap gap-3 mt-4 small text-body-secondary">
+	<span><span class="badge rounded-pill pill-ok">200</span> responde</span>
+	<span><span class="badge rounded-pill pill-login">302</span> redirige a login/dashboard</span>
+	<span><span class="badge rounded-pill pill-err">off</span> no disponible</span>
+	<span><span class="badge rounded-pill pill-unknown">&mdash;</span> sin datos</span>
+</div>
+{% endblock %}

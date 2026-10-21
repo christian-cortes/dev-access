@@ -8,35 +8,87 @@ settings:
   default_method: GET
   default_accept: [200, 301, 302, 303, 307, 308, 401, 403]
 
+home:
+  shortcuts_title: Servicios destacados
+  shortcut_categories: [infraestructura, accesos-directos]
+  shortcut_exclude: [netdata]
+  notice_html: '<strong>Certificado:</strong> todos los servicios usan <code>*.cortexdev.win</code> con certificado público (Let''s Encrypt), así que <strong>no</strong> hace falta instalar nada.'
+
 categories:
   - slug: infraestructura
     title: Infraestructura
+    subtitle: Servicios de la LAN expuestos vía <code>*.cortexdev.win</code>
     description: Proxmox VE, Proxmox Backup Server, Pi-hole, Grafana, Netdata (uno por servidor) y el monitor UPS (APC).
     url: /infraestructura.html
     note_header: Destino
     count_label: servicios
     card_tech: [server, proxmox]
+    show_card: true
+    show_table: true
+    show_nav: true
+    nav_order: 10
+    intro_html: 'Máquinas: 192.168.0.87 (docker) &middot; .49 (services) &middot; .166 (pbs) &middot; .224 (pve)'
+    note_html: '<strong>DNS:</strong> Pi-hole resuelve <code>address=/cortexdev.win/192.168.0.87</code> (wildcard apps) y <code>address=/&lt;host&gt;.cortexdev.win/192.168.0.49</code> para la capa de acceso (<code>misc.dnsmasq_lines</code>). <strong>TLS:</strong> certificado público (Let''s Encrypt) en <code>certs/cortexdev.win/</code>.'
+    legend:
+      - {kind: tech, icon: proxmox, label: Proxmox}
+      - {kind: tech, icon: pihole, label: Pi-hole}
+      - {kind: tech, icon: grafana, label: Grafana}
+      - {kind: tech, icon: netdata, label: Netdata}
+      - {kind: tech, icon: ups, label: UPS}
   - slug: laravel
     title: Laravel
+    subtitle: PHP 8.3-FPM &middot; <code>laravel_web</code> &middot; <code>laravel/</code>
     description: Aplicaciones PHP 8.3 servidas por <code>laravel_web</code> (FPM).
     url: /laravel.html
     note_header: Nota
     count_label: proyectos
     card_tech: [laravel]
+    show_card: true
+    show_table: true
+    show_nav: true
+    nav_order: 20
+    note_html: 'Cada app tiene su vhost <code>.win</code> en <code>nginx_web</code> (.87), con certificado público. Si una app fija su <code>APP_URL</code> o cookies a un dominio antiguo, el login puede quedar mixto hasta ajustarlo en la app.'
+    legend:
+      - {kind: app, icon: analisis-datos.png, label: favicon/logo real de la app (si existe)}
+      - {kind: tech, icon: laravel, label: framework / tecnología}
+      - {kind: badge, label: iniciales (respaldo si no hay favicon)}
   - slug: codeigniter
     title: CodeIgniter / PHP
+    subtitle: PHP 8.1-FPM &middot; <code>codeigniter_web</code> &middot; <code>www/</code>
     description: Apps PHP 8.1 bajo <code>apps.cortexdev.win/&lt;ruta&gt;</code> y <code>csr-twofa</code>.
     url: /codeigniter.html
     note_header: Nota
     count_label: apps
     card_tech: [codeigniter, php]
+    show_card: true
+    show_table: true
+    show_nav: true
+    nav_order: 30
+    note_html: 'El hub raíz <a href="https://apps.cortexdev.win/" target="_blank" rel="noopener">apps.cortexdev.win</a> responde <strong>403</strong> por no tener índice (preexistente); entra por la ruta de cada app.'
+    legend:
+      - {kind: app, icon: csr-support.png, label: favicon/logo real de la app}
+      - {kind: tech, icon: codeigniter, label: CodeIgniter}
+      - {kind: tech, icon: php, label: PHP}
+      - {kind: tech, icon: laravel, label: Laravel}
+      - {kind: badge, label: iniciales (respaldo sin favicon)}
   - slug: spas
     title: SPAs y utilidades
+    subtitle: Angular, React, Python y herramientas de la LAN
     description: Portal Pacientes (Angular), Centro de Apoyo (React) y Bot Gomedisys.
     url: /spas.html
     note_header: Nota
     count_label: apps
     card_tech: [angular, react, python]
+    show_card: true
+    show_table: true
+    show_nav: true
+    nav_order: 40
+    note_html: 'Las apps y utilidades se sirven por <code>*.cortexdev.win</code> con certificado público. <code>portal-pacientes &rarr; admin-portal-pacientes</code> (<code>/api/</code>) también es interno.'
+    legend:
+      - {kind: app, icon: portal-pacientes.png, label: favicon/logo real de la app}
+      - {kind: tech, icon: angular, label: Angular}
+      - {kind: tech, icon: react, label: React}
+      - {kind: tech, icon: python, label: Python}
   - slug: accesos-directos
     title: Accesos directos
     description: Enlaces directos a phpMyAdmin y al portal de copias.
@@ -44,6 +96,10 @@ categories:
     note_header: Destino
     count_label: accesos
     card_tech: [server]
+    show_card: false
+    show_table: false
+    show_nav: false
+    nav_order: 99
 
 services:
   # ----------------------------- Infraestructura ---------------------------

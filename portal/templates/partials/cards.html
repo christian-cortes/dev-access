@@ -1,0 +1,26 @@
+{% for service in services %}
+<div class="col">
+	<article class="card card-service h-100 text-body"
+		data-slug="{{ service.slug }}" data-category="{{ service.category }}"
+		data-name="{{ service.name }}" data-url="{{ service.url }}"
+		data-icon="{{ service.icon or '' }}" data-color="{{ service.color or '' }}"
+		data-badge="{{ 'on' if service.badge else 'off' }}"
+		data-tech="{{ service.tech|join(',') }}" data-no-card-icons>
+		<div class="card-body">
+			<div class="card-head">
+				{% if service.head_icon %}
+				<img class="app-icon card-app" src="{{ service.head_icon }}" alt="" width="26" height="26" loading="lazy" decoding="async">
+				{% elif service.initials %}
+				<span class="app-badge" style="--c: {{ service.color or '#334155' }}">{{ service.initials }}</span>
+				{% endif %}
+				<h3 class="h6 card-title">
+					<a class="card-link stretched-link" href="{{ service.url }}" target="_blank" rel="noopener">{{ service.name }}</a>
+				</h3>
+			</div>
+			{% if service.note %}
+			<p class="card-text small text-body-secondary mb-0">{{ service.note|safe }}</p>
+			{% endif %}
+		</div>
+	</article>
+</div>
+{% endfor %}

@@ -42,7 +42,7 @@ if [ "${ALLOW_OTHER_HOST:-0}" != "1" ] && ! hostname -I 2>/dev/null | grep -q '1
 fi
 
 info "1/5 Archivos y certificados"
-for p in docker-compose.yml nginx/conf.d/index.conf nginx/conf.d/infra.conf nginx/conf.d/copias.conf nginx/conf.d/snippets/tls-win.conf portal/index.html; do
+for p in docker-compose.yml nginx/conf.d/index.conf nginx/conf.d/infra.conf nginx/conf.d/copias.conf nginx/conf.d/snippets/tls-win.conf nginx/conf.d/snippets/security-headers.conf portal/login.html portal/login.css portal/login.js portal/templates/pages/index.html scripts/build-portal.py; do
   if [ -e "$p" ]; then
     ok "$p"
   else
@@ -124,6 +124,8 @@ else
 fi
 
 info "4/5 Levantando nginx de acceso"
+docker compose build portal-build || { bad "docker compose build portal-build fallo"; exit 1; }
+docker compose --profile build run --rm --user "$(id -u):$(id -g)" portal-build || { bad "build del portal fallo"; exit 1; }
 docker compose up -d --build || bad "docker compose up -d --build fallo"
 sleep 2
 st="$(docker inspect --format '{{.State.Status}}' access_nginx 2>/dev/null || true)"

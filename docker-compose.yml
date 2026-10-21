@@ -46,6 +46,17 @@ services:
       retries: 3
       start_period: 15s
 
+  portal-build:
+    build: ./backend
+    profiles: ["build"]
+    environment:
+      PYTHONPATH: /app
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./portal:/portal
+      - ./backend/catalog.yml:/catalog.yml:ro
+    command: python /scripts/build-portal.py --catalog /catalog.yml --templates /portal/templates --out /portal/dist
+
   prometheus:
     image: prom/prometheus:v3.5.0
     container_name: prometheus

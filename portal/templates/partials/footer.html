@@ -1,0 +1,11 @@
+<footer class="bottom d-flex flex-wrap justify-content-between gap-2 border-top pt-3 mt-5 small text-body-secondary">
+	<span>cortexdev.win &middot; {{ footer_note }}</span>
+	<span>
+		{% if is_index %}
+		Detalle en <a href="/infraestructura.html">Infraestructura</a>, <a href="/laravel.html">Laravel</a>,
+		<a href="/codeigniter.html">CodeIgniter</a> y <a href="/spas.html">SPAs</a>
+		{% else %}
+		<a href="/">Volver al índice</a>
+		{% endif %}
+	</span>
+</footer>

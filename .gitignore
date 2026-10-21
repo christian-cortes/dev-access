@@ -6,6 +6,9 @@ certs/
 # Datos runtime de portal-api (SQLite). Se recrea desde backend/catalog.yml.
 backend/data/
 
+# Portal generado desde catalog.yml (scripts/build-portal.py).
+portal/dist/
+
 # Secretos de monitoring (clave admin de Grafana). Usar .env.example como plantilla.
 .env
 

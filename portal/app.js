@@ -79,14 +79,14 @@
       });
       table.querySelectorAll('tbody tr').forEach(function (tr) {
         Array.prototype.forEach.call(tr.children, function (td, i) {
-          if (ths[i]) td.setAttribute('data-th', ths[i]);
+          if (ths[i] && !td.getAttribute('data-th')) td.setAttribute('data-th', ths[i]);
         });
       });
     });
   }
 
   function addCardIcons() {
-    document.querySelectorAll('.card[data-tech]').forEach(function (card) {
+    document.querySelectorAll('.card[data-tech]:not([data-no-card-icons])').forEach(function (card) {
       if (card.querySelector('.card-icons')) return;
       var box = document.createElement('div');
       box.className = 'card-icons';
@@ -150,7 +150,8 @@
   function loadPushClient() {
     if (document.querySelector('script[data-push-client]')) return;
     var s = document.createElement('script');
-    s.src = '/push-client.js?v=5';
+    var version = document.documentElement.getAttribute('data-asset-version') || '6';
+    s.src = '/push-client.js?v=' + encodeURIComponent(version);
     s.defer = true;
     s.setAttribute('data-push-client', '1');
     document.head.appendChild(s);
@@ -261,18 +262,20 @@
       var st = (statuses && statuses[s.slug]) || s.status || {};
       if (st.state !== 'offline') return;
       var details = [{ label: 'URL', value: shortUrl(s.url) }];
+      if (st.state_since) details.push({ label: 'En caída desde', value: fmtNotifTime(st.state_since) });
       if (st.code != null) details.push({ label: 'Código', value: String(st.code) });
       if (st.latency_ms != null) details.push({ label: 'Latencia', value: st.latency_ms + ' ms' });
       if (st.checked_at) details.push({ label: 'Último chequeo', value: new Date(st.checked_at).toLocaleString() });
+      if (st.last_state && st.last_state !== st.state) details.push({ label: 'Último sondeo', value: st.last_state });
       if (st.error) details.push({ label: 'Error', value: st.error });
-      if (st.uptime_24h != null) details.push({ label: 'Uptime 24h', value: st.uptime_24h + '%' });
+      if (st.uptime_24h_pct != null) details.push({ label: 'Uptime 24h', value: st.uptime_24h_pct + '%' });
       if (s.category) details.push({ label: 'Categoría', value: s.category });
       out.push({
         id: 'index:service:' + s.slug + ':offline',
         severity: 'critical',
         title: s.name,
         summary: 'El servicio no responde',
-        ts: st.checked_at || null,
+        ts: st.state_since || st.checked_at || null,
         details: details,
         action: { label: 'Abrir servicio', url: s.url },
       });

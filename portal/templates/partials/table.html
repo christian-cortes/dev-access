@@ -1,0 +1,40 @@
+<table class="table table-hover align-middle links" data-category="{{ category.slug }}">
+	<caption class="visually-hidden">{{ category.title }}</caption>
+	<thead>
+		<tr>
+			<th scope="col">Servicio</th>
+			<th scope="col">URL</th>
+			<th scope="col">Estado</th>
+			<th scope="col">{{ category.note_header }}</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for service in services %}
+		<tr data-slug="{{ service.slug }}" data-category="{{ service.category }}"
+			data-name="{{ service.name }}" data-url="{{ service.url }}"
+			data-icon="{{ service.icon or '' }}" data-color="{{ service.color or '' }}"
+			data-badge="{{ 'on' if service.badge else 'off' }}">
+			<td class="name" data-tech="{{ service.tech|join(',') }}" data-th="Servicio" data-icons="done"
+				{% if service.icon %}data-app="{{ service.icon }}"{% endif %}
+				{% if service.color %}data-color="{{ service.color }}"{% endif %}
+				{% if not service.badge %}data-badge="off"{% endif %}>
+				{% if service.icon %}
+				<img class="app-icon" src="/favicons/{{ service.icon }}" alt="" width="18" height="18" loading="lazy" decoding="async">
+				{% elif service.initials %}
+				<span class="app-badge" style="--c: {{ service.color or '#334155' }}">{{ service.initials }}</span>
+				{% endif %}
+				{{ service.name }}
+				{% for tech in service.tech %}
+				<img class="tech" src="/icons/{{ tech }}.svg" alt="{{ tech }}" width="18" height="18" loading="lazy" decoding="async">
+				{% endfor %}
+			</td>
+			<td class="url" data-th="URL"><a href="{{ service.url }}" target="_blank" rel="noopener">{{ service.display_url }}</a></td>
+			<td class="status" data-th="Estado">
+				<span class="badge rounded-pill pill-unknown">—</span>
+				<span class="meta"></span>
+			</td>
+			<td class="note" data-th="{{ category.note_header }}">{{ service.note|safe }}</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>

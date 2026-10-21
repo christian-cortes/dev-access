@@ -193,12 +193,51 @@ fi
 
 # El catálogo del portal ahora requiere sesión (SSO) si se pide por nginx; se
 # consulta portal-api directamente en loopback, que no aplica auth_request.
-body="$(curl -s http://127.0.0.1:8088/api/portal 2>/dev/null || true)"
+body="$(curl -s http://127.0.0.1:8088/api/catalog 2>/dev/null || true)"
 if printf '%s' "$body" | grep -q '"services"'; then
   n="$(printf '%s' "$body" | grep -o '"category"' | wc -l)"
-  ok "GET /api/portal -> catalogo ($n servicios)"
+  ok "GET /api/catalog -> catalogo ($n servicios)"
 else
-  bad "GET /api/portal sin catalogo (docker logs --tail 40 portal_api)"
+  bad "GET /api/catalog sin catalogo (docker logs --tail 40 portal_api)"
+fi
+
+body="$(curl -s http://127.0.0.1:8088/api/status 2>/dev/null || true)"
+if printf '%s' "$body" | grep -q '"statuses"' && printf '%s' "$body" | grep -q '"refresh_ms"'; then
+  ok "GET /api/status -> estados + summary + refresh_ms"
+else
+  bad "GET /api/status sin contrato esperado (docker logs --tail 40 portal_api)"
+fi
+
+body="$(curl -s 'http://127.0.0.1:8088/api/stats?window=24h' 2>/dev/null || true)"
+if printf '%s' "$body" | grep -q '"availability_pct"'; then
+  ok "GET /api/stats?window=24h -> 200"
+else
+  bad "GET /api/stats sin resumen (docker logs --tail 40 portal_api)"
+fi
+
+body="$(curl -s 'http://127.0.0.1:8088/api/incidents?window=7d&limit=5' 2>/dev/null || true)"
+if printf '%s' "$body" | grep -q '"incidents"'; then
+  ok "GET /api/incidents -> 200"
+else
+  bad "GET /api/incidents sin lista (docker logs --tail 40 portal_api)"
+fi
+
+if printf '%s' "$(curl -sS --resolve index.cortexdev.win:443:127.0.0.1 https://index.cortexdev.win/login.html 2>/dev/null || true)" | grep -q 'data-portal-mode'; then
+  bad "login.html contiene data-portal-mode (se sirve el index?)"
+else
+  ok "login.html público"
+fi
+
+headers="$(curl -sS -D - -o /dev/null -H 'Accept-Encoding: gzip' --resolve index.cortexdev.win:443:127.0.0.1 https://index.cortexdev.win/login.html 2>/dev/null || true)"
+if printf '%s' "$headers" | grep -qi 'content-security-policy'; then
+  ok "CSP presente en login.html"
+else
+  bad "CSP ausente en login.html"
+fi
+if printf '%s' "$headers" | grep -qi 'content-encoding: gzip'; then
+  ok "gzip activo en login.html"
+else
+  warn "gzip no observado en login.html"
 fi
 
 dig_answer() {

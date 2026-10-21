@@ -257,26 +257,39 @@ acceso.
   Para desactivarlo por completo: `scripts/apps-retire-lan.sh` (reporte) y luego
   `--apply` (`[--fix-env] [--purge-certs]`) en ubuntu-docker.
 
-## Portal dinámico (catálogo + estado)
+## Portal dinámico (catálogo + estado + estadísticas)
 
-El portal no lleva listas hardcodeadas: `portal-api` (contenedor `portal_api`, FastAPI + SQLite)
-guarda el catálogo de servicios y comprueba su estado.
+`portal-api` (contenedor `portal_api`, FastAPI + SQLite) comprueba el catálogo y calcula
+agregados. Las páginas se generan en build desde `backend/catalog.yml`; no hay listas
+hardcodeadas en HTML.
 
 - Catálogo: `backend/catalog.yml` es la fuente de verdad. Al arrancar (y en cada
   `scripts/deploy.sh`) se sincroniza por `slug` con `/data/portal.db`; los servicios que se
   quitan del YAML se desactivan (no se borra el histórico).
+- Build: `scripts/build-portal.py` genera `portal/dist/` desde `backend/catalog.yml` y
+  `portal/templates/`. `scripts/deploy.sh` construye antes de recrear nginx; si el build falla,
+  no se despliega. `portal/dist/` está gitignored y no se edita a mano.
 - Sondeos: cada `POLL_INTERVAL` (30s) `portal_api` hace GET contra la URL pública de cada
   servicio (`probe_url` opcional), sin seguir redirecciones, con timeout de `PROBE_TIMEOUT`.
   Un código en `accept` es online (2xx) o login (3xx/401/403); timeout, error o 5xx = offline.
   Los Netdata usan `/api/v1/info` para no cargar el dashboard.
+- Estado: `state` es el estado comprometido con histéresis (3 fallos para caer, 2 éxitos para
+  recuperar) y es el que dispara los avisos. `last_state` es el último sondeo crudo.
 - API (bajo `index.cortexdev.win/api/`, bind local `127.0.0.1:8088`):
-  - `GET /api/health` → estado de la BD.
-  - `GET /api/portal` → catálogo + categorías + estado + `uptime_24h`.
-  - `GET /api/status[?refresh=1]` → solo estados, para el refresco del navegador (cada 20s).
-- Histórico: tabla `checks` con retención de 7 días (`RETENTION_DAYS`); el portal muestra el %
-  de disponibilidad 24h.
-- Frontend: `portal/render.js` pinta tablas, tarjetas y contadores desde `/api/portal` y
-  refresca los pills desde `/api/status`. Si `portal_api` cae, las páginas cargan con un aviso.
+  - `GET /api/health` → BD, `last_run`, `last_error` y versión de esquema.
+  - `GET /api/catalog` → catálogo saneado con ETag (sin estado).
+  - `GET /api/status` → estados, `summary`, `refresh_ms`, `next_check_at` y serie horaria.
+  - `GET /api/stats?window=24h|7d|30d` → disponibilidad, cobertura, latencia, incidentes y serie.
+  - `GET /api/incidents?window=7d&limit=50` → histórico de incidentes.
+  - `POST /api/refresh` → fuerza una tanda; los `GET` no lanzan sondeos.
+  - `GET /api/portal` → composición temporal, deprecada.
+- Histórico: `checks` con retención de 7 días (`RETENTION_DAYS`); `checks_hourly` con 90 días;
+  `incidents` guarda caídas y MTTR. La ventana de 24 h se muestra como `uptime_24h_pct` (0–100).
+  `availability_pct` se pondera por checks, `coverage_pct` mide servicios con datos, `p95` es una
+  muestra reciente (no la ventana completa) y el MTTR empieza cuando la caída se compromete
+  (3 fallos), no en el primer fallo.
+- Frontend: `portal/render.js` consume `/api/status`; en modo `static` no pide catálogo, actualiza
+  pills/contadores y pinta los KPI. Si `portal_api` cae, conserva el HTML y muestra un aviso.
 - Tema: Bootstrap 5.3.3 **vendoreado** en `portal/vendor/bootstrap/` (sin CDN ni npm; el portal
   es autocontenido para la LAN/Tailscale). `portal/theme.js` fija `data-theme` y `data-bs-theme`
   en `<html>` a partir de `localStorage['cortexdev-theme']` (por defecto oscuro), y `app.js`
@@ -285,7 +298,8 @@ guarda el catálogo de servicios y comprueba su estado.
   (idempotente). No hay que tocar los HTML.
 
 Variables de `portal_api` (compose): `DB_PATH`, `CATALOG_PATH`, `POLL_INTERVAL`, `PROBE_TIMEOUT`,
-`RETENTION_DAYS`. La verificación TLS usa las CAs del sistema (Let's Encrypt).
+`RETENTION_DAYS`, `PORTAL_DISABLE_POLL`. La verificación TLS usa las CAs del sistema
+(Let's Encrypt). El breakpoint móvil real de `portal/style.css` es 820 px.
 
 ## Copias de seguridad (`backupcsr/`)
 

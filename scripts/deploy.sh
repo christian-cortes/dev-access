@@ -51,6 +51,23 @@ if [ -x scripts/install-win-cert.sh ]; then
   scripts/install-win-cert.sh --ensure || log "AVISO: no pude asegurar el certificado *.cortexdev.win"
 fi
 
+# Respaldo consistente de la BD antes de migrar. El checkpoint va antes de copiar
+# para no perder el WAL; si portal_api sigue escribiendo, usar .backup.
+if [ -f backend/data/portal.db ] && command -v sqlite3 >/dev/null 2>&1; then
+  backup="backend/data/portal.db.bak-$(date +%Y%m%d-%H%M%S)"
+  if ! sqlite3 backend/data/portal.db ".backup '$backup'"; then
+    printf '\033[1;31mERROR\033[0m no se pudo respaldar %s\n' "$backup" >&2
+    exit 1
+  fi
+  log "BD respaldada en $backup"
+fi
+
+# El portal es estático generado desde catalog.yml. Se construye ANTES de
+# recrear nginx: si el build falla, se aborta y sigue la versión anterior.
+log "build portal (catalog.yml)"
+docker compose build portal-build
+docker compose --profile build run --rm --user "$(id -u):$(id -g)" portal-build
+
 log "docker compose up -d --build"
 docker compose up -d --build
 

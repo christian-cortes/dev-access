@@ -1,0 +1,16 @@
+<header class="top d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+	<div class="brand d-flex align-items-center gap-3 min-w-0">
+		<div class="logo"><img src="/favicons/cortexdev-180.png" alt="CortexDev" width="42" height="42"></div>
+		<div>
+			<h1 class="h4 mb-0">{{ brand_title }}</h1>
+			<p class="mb-0 small text-body-secondary">{{ brand_subtitle|safe }}</p>
+		</div>
+	</div>
+	<nav class="crumbs nav nav-pills flex-wrap gap-2 small">
+		<a class="nav-link{% if active_nav == 'index' %} active{% endif %}" href="/">Inicio</a>
+		{% for item in nav_categories %}
+		<a class="nav-link{% if active_nav == item.slug %} active{% endif %}" href="{{ item.url }}">{{ item.title }}</a>
+		{% endfor %}
+		<a class="nav-link{% if active_nav == 'notificaciones' %} active{% endif %}" href="/notificaciones.html">Notificaciones</a>
+	</nav>
+</header>
