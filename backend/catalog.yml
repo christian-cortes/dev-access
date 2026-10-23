@@ -314,6 +314,15 @@ services:
     color: "#06b6d4"
     note: "Versión Laravel"
     sort: 210
+  - slug: csr-support-laravel
+    name: CSR Support
+    category: laravel
+    url: https://csr-support.cortexdev.win
+    tech: [laravel]
+    icon: csr-support.png
+    color: "#ef4223"
+    note: "Versión Laravel"
+    sort: 220
 
   # --------------------------- CodeIgniter / PHP ---------------------------
   - slug: csr-support

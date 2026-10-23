@@ -18,14 +18,16 @@
 				{% if service.icon %}data-app="{{ service.icon }}"{% endif %}
 				{% if service.color %}data-color="{{ service.color }}"{% endif %}
 				{% if not service.badge %}data-badge="off"{% endif %}>
-				{% if service.icon %}
-				<img class="app-icon" src="/favicons/{{ service.icon }}" alt="" width="18" height="18" loading="lazy" decoding="async">
+				{% if service.head_icon %}
+				<img class="app-icon" src="{{ service.head_icon }}" alt="" width="18" height="18" loading="lazy" decoding="async">
 				{% elif service.initials %}
 				<span class="app-badge" style="--c: {{ service.color or '#334155' }}">{{ service.initials }}</span>
 				{% endif %}
 				{{ service.name }}
 				{% for tech in service.tech %}
+				{% if service.head_icon != '/icons/' ~ tech ~ '.svg' %}
 				<img class="tech" src="/icons/{{ tech }}.svg" alt="{{ tech }}" width="18" height="18" loading="lazy" decoding="async">
+				{% endif %}
 				{% endfor %}
 			</td>
 			<td class="url" data-th="URL"><a href="{{ service.url }}" target="_blank" rel="noopener">{{ service.display_url }}</a></td>
